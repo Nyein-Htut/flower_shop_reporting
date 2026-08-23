@@ -1,0 +1,8 @@
+Flask==3.0.2
+Flask-SQLAlchemy==3.1.1
+psycopg2-binary
+gunicorn==21.2.0
+fpdf2==2.8.3
+Pillow>=10.0.0
+cloudinary>=1.40.0
+python-dotenv>=1.0.0

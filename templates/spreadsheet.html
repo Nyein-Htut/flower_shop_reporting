@@ -1,0 +1,915 @@
+{% extends "base.html" %}
+
+{% block title %}Spreadsheet View{% endblock %}
+
+{% block content %}
+
+<style>
+:root{
+    --grid:#d9d9d9;
+    --header:#f3f3f3;
+    --hover:#fafafa;
+    --selected:#eaf4ff;
+    --toolbar:#ffffff;
+    --memory-green:#6f8f72;
+    --memory-dark:#4a3728;
+
+
+}
+
+body{
+    overflow:hidden;
+}
+
+.sheet-page{
+
+    display:flex;
+    flex-direction:column;
+
+    height:calc(100vh - 100px);
+
+    padding:35px 60px;
+
+    background:#f5f1ec;
+
+}
+
+.sheet-page{
+    max-width:1600px;
+    margin:auto;
+}
+    
+.sheet-toolbar{
+
+    background:white;
+
+    border:1px solid #e5ded6;
+
+    border-radius:16px 16px 0 0;
+
+    padding:18px 22px;
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    gap:20px;
+
+    flex-wrap:wrap;
+
+}
+
+.sheet-left{
+    display:flex;
+    gap:12px;
+    align-items:center;
+}
+
+.sheet-right{
+    display:flex;
+    gap:10px;
+    align-items:center;
+}
+
+.sheet-search{
+    width:320px;
+    max-width:100%;
+    padding:8px 12px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    font-size:14px;
+}
+
+.sheet-select{
+    padding:8px 12px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+
+.sheet-container{
+
+    flex:1;
+
+    overflow:auto;
+
+    touch-action:none;
+    
+    background:white;
+
+    border:1px solid #ddd;
+    
+    border-top:3px solid #6f8f72;
+
+    border-radius:0 0 12px 12px;
+
+    box-shadow:0 4px 15px rgba(0,0,0,0.08);
+
+}
+
+.sheet-table{
+
+    width:max-content;
+
+    min-width:1200px;
+
+    border-collapse:collapse;
+
+    table-layout:fixed;
+
+    transform-origin:top left;
+
+}
+
+.sheet-container{
+
+    touch-action:none;
+
+}
+    
+.sheet-table th{
+    position:sticky;
+    top:0;
+    z-index:20;
+
+    background:var(--header);
+
+    border:1px solid var(--grid);
+
+    font-size:13px;
+    font-weight:600;
+
+    white-space:nowrap;
+
+    padding:8px 10px;
+}
+
+.sheet-table td{
+
+    border:1px solid var(--grid);
+
+    padding:5px;
+
+    font-size:13px;
+
+    vertical-align:middle;
+
+    background:white;
+
+}
+
+.sheet-table tr:hover td{
+
+    background:var(--hover);
+
+}
+
+.sheet-table td input,
+.sheet-table td textarea,
+.sheet-table td select{
+
+    width:100%;
+    border:none;
+    outline:none;
+    background:transparent;
+
+    font-size:13px;
+
+}
+
+.sheet-table textarea{
+
+    resize:vertical;
+    min-height:52px;
+
+}
+
+.thumb{
+
+    width:70px;
+    height:70px;
+
+    object-fit:cover;
+
+    border-radius:6px;
+
+    cursor:pointer;
+
+}
+
+.no-image{
+
+    width:70px;
+    height:70px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    color:#999;
+    font-size:12px;
+
+    background:#fafafa;
+
+    border:1px dashed #ccc;
+
+}
+
+.status-paid{
+
+    color:#0b7d27;
+    font-weight:600;
+
+}
+
+.status-unpaid{
+
+    color:#c0392b;
+    font-weight:600;
+
+}
+
+.save-indicator{
+
+    position:fixed;
+
+    right:30px;
+    bottom:30px;
+
+    background:#222;
+    color:white;
+
+    padding:10px 18px;
+
+    border-radius:8px;
+
+    display:none;
+
+    z-index:9999;
+
+}
+
+.col-date{width:120px;}
+.col-source{width:150px;}
+.col-customer{width:180px;}
+.col-photo{width:90px;}
+.col-size{width:80px;}
+.col-price{width:110px;}
+.col-delivery{width:120px;}
+.col-paid{width:110px;}
+.col-time{width:120px;}
+.col-remarks{width:260px;}
+.col-flower{width:90px;}
+.col-address{width:250px;}
+
+</style>
+
+<div class="sheet-page">
+
+<div class="sheet-toolbar">
+
+<div class="sheet-left">
+
+<div>
+
+<h4 
+class="mb-1"
+style="
+color:#4a3728;
+font-weight:700;
+">
+
+Spreadsheet View
+
+</h4>
+
+
+<small style="
+color:#6f8f72;
+">
+
+Manage cake orders & update details
+
+</small>
+
+
+</div>
+
+<input
+type="text"
+id="sheetSearch"
+class="sheet-search"
+placeholder="Search customer, cake, source..."
+>
+
+</div>
+
+<div class="sheet-right">
+
+<select
+id="paymentFilter"
+class="sheet-select">
+
+<option value="">All Payments</option>
+<option value="paid">Paid</option>
+<option value="unpaid">Unpaid</option>
+
+</select>
+
+
+<button
+class="btn"
+style="
+background:#6f8f72;
+color:white;
+border-radius:8px;
+"
+onclick="location.reload()">
+
+Refresh
+
+</button>
+
+</div>
+
+</div>
+
+<div class="sheet-container">
+
+<table
+class="sheet-table"
+id="sheetTable">
+
+<thead>
+
+<tr>
+
+<th class="sticky-left col-date">
+
+Date
+
+</th>
+
+<th class="sticky-left-2 col-source">
+
+Source
+
+</th>
+
+<th class="col-customer">
+
+Customer
+
+</th>
+
+<th class="col-photo">
+
+Cake
+
+</th>
+
+<th class="col-size">
+
+Size
+
+</th>
+
+<th class="col-price">
+
+Price
+
+</th>
+
+<th class="col-delivery">
+
+Delivery Fee
+
+</th>
+
+<th class="col-paid">
+
+Paid
+
+</th>
+
+<th class="col-time">
+
+Pickup Time
+
+</th>
+
+<th class="col-remarks">
+
+Remarks
+
+</th>
+
+<th class="col-flower">
+
+Flowers
+
+</th>
+
+<th class="col-address">
+
+Address
+
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for row in rows %}
+
+<tr
+data-order="{{ row.order.id }}"
+data-item="{{ row.item.id }}"
+data-paid="{{ 'paid' if row.order.is_paid else 'unpaid' }}"
+>
+
+<td class="sticky-left">
+
+<input
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="date"
+value="{{ row.order.date }}"
+>
+
+</td>
+
+<td class="sticky-left-2">
+
+<input
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="source"
+value="{{ row.order.source }}"
+>
+
+</td> 
+
+<td>
+
+<input
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="customer"
+value="{{ row.order.customer }}"
+>
+
+</td>
+
+
+<td>
+
+{% if row.item.image_url %}
+
+<img
+src="{{ row.item.image_url }}"
+class="thumb"
+onclick="window.open('{{ row.item.image_url }}','_blank')"
+>
+
+{% else %}
+
+<div class="no-image">
+No Image
+</div>
+
+{% endif %}
+
+<br>
+
+<small>
+{{ row.item.item_name }}
+</small>
+
+</td>
+
+<td>
+
+<input
+class="editable"
+data-table="item"
+data-id="{{ row.item.id }}"
+data-field="size"
+value="{{ row.item.size }}"
+>
+
+</td>
+
+
+<td>
+
+<input
+type="number"
+class="editable"
+data-table="item"
+data-id="{{ row.item.id }}"
+data-field="price"
+value="{{ row.item.price or 0 }}"
+>
+
+</td>
+
+<td>
+
+<input
+type="number"
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="delivery_fee"
+value="{{ row.order.delivery_fee or 0 }}"
+>
+
+</td>
+
+<td>
+
+<select
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="is_paid"
+>
+
+<option
+value="1"
+{% if row.order.is_paid %}
+selected
+{% endif %}
+>
+
+Paid
+
+</option>
+
+
+<option
+value="0"
+{% if not row.order.is_paid %}
+selected
+{% endif %}
+>
+
+Unpaid
+
+</option>
+
+
+</select>
+
+</td>
+
+<td>
+
+<input
+type="time"
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="time"
+value="{{ row.order.time or '' }}"
+>
+
+</td>
+
+
+<td>
+
+<textarea
+class="editable"
+data-table="item"
+data-id="{{ row.item.id }}"
+data-field="remarks"
+>{{ row.item.remarks or '' }}</textarea>
+
+</td>
+
+
+<td>
+
+{% if row.item.flower_image_url %}
+
+<img
+src="{{ row.item.flower_image_url }}"
+class="thumb"
+onclick="window.open('{{ row.item.flower_image_url }}','_blank')"
+>
+
+{% else %}
+
+<div class="no-image">
+No Flower
+</div>
+
+{% endif %}
+
+</td>
+
+
+<td>
+
+<textarea
+class="editable"
+data-table="order"
+data-id="{{ row.order.id }}"
+data-field="address"
+>{{ row.order.address or '' }}</textarea>
+
+</td>
+
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<div id="saveIndicator" class="save-indicator">
+
+Saved ✓
+
+</div>
+
+<script>
+
+
+const indicator = document.getElementById("saveIndicator");
+
+
+
+function showSaved(){
+
+    indicator.style.display="block";
+
+    setTimeout(()=>{
+
+        indicator.style.display="none";
+
+    },1200);
+
+}
+
+
+
+document.querySelectorAll(".editable").forEach(input=>{
+
+
+    input.addEventListener("change", async function(){
+
+
+        const table = this.dataset.table;
+        const id = this.dataset.id;
+        const field = this.dataset.field;
+
+
+        let value = this.value;
+
+
+
+        try{
+
+
+            const response = await fetch("/api/update-cell",{
+
+                method:"POST",
+
+                headers:{
+
+                    "Content-Type":"application/json"
+
+                },
+
+
+                body:JSON.stringify({
+
+                    table:table,
+
+                    id:id,
+
+                    field:field,
+
+                    value:value
+
+                })
+
+
+            });
+
+
+
+            const result = await response.json();
+
+
+
+            if(result.success){
+
+                showSaved();
+
+            }
+
+
+        }
+
+        catch(error){
+
+            console.error(error);
+
+            alert("Save failed");
+
+        }
+
+
+
+    });
+
+
+
+});
+
+
+
+
+
+// Search
+
+
+const searchBox = document.getElementById("sheetSearch");
+
+
+searchBox.addEventListener("input",function(){
+
+
+    const keyword = this.value.toLowerCase();
+
+
+
+    document.querySelectorAll("#sheetTable tbody tr")
+    .forEach(row=>{
+
+
+        const text=row.innerText.toLowerCase();
+
+
+        if(text.includes(keyword)){
+
+            row.style.display="";
+
+        }
+
+        else{
+
+            row.style.display="none";
+
+        }
+
+
+
+    });
+
+
+
+});
+
+
+
+
+
+// Payment filter
+
+
+const paymentFilter=document.getElementById("paymentFilter");
+
+
+paymentFilter.addEventListener("change",function(){
+
+
+    const filter=this.value;
+
+
+
+    document.querySelectorAll("#sheetTable tbody tr")
+    .forEach(row=>{
+
+
+        const paid=row.dataset.paid;
+
+
+
+        if(!filter || paid===filter){
+
+            row.style.display="";
+
+        }
+
+        else{
+
+            row.style.display="none";
+
+        }
+
+
+    });
+
+
+});
+
+// iPad style pinch zoom for spreadsheet
+
+let tableZoom = 1;
+let startDistance = 0;
+
+const table = document.querySelector(".sheet-table");
+const container = document.querySelector(".sheet-container");
+
+
+function getDistance(touches){
+
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+
+    return Math.sqrt(dx * dx + dy * dy);
+
+}
+
+
+
+container.addEventListener("touchstart", function(e){
+
+    if(e.touches.length === 2){
+
+        startDistance = getDistance(e.touches);
+
+    }
+
+});
+
+
+
+container.addEventListener("touchmove", function(e){
+
+    if(e.touches.length === 2){
+
+        e.preventDefault();
+
+
+        const currentDistance = getDistance(e.touches);
+
+
+        const difference = currentDistance - startDistance;
+
+
+        if(Math.abs(difference) > 10){
+
+
+            tableZoom += difference * 0.002;
+
+
+            // limits
+            if(tableZoom < 0.5){
+
+                tableZoom = 0.5;
+
+            }
+
+
+            if(tableZoom > 2){
+
+                tableZoom = 2;
+
+            }
+
+
+            table.style.zoom = tableZoom;
+
+
+            startDistance = currentDistance;
+
+        }
+
+    }
+
+},
+{
+    passive:false
+});
+</script>
+
+{% endblock %}

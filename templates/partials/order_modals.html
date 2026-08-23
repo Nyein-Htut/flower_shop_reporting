@@ -1,0 +1,311 @@
+{# Shared edit + delete modals: used by both manager (daily.html) and staff (staff_daily.html).
+   Pass show_payment=True/False to control whether the price field/labels differ.
+   NOTE: "Mark as Paid" is intentionally NOT in this form (for either role) — it's
+   managed directly from the "Mark as Paid" toggle on each order card in
+   daily_records.html (via /toggle_payment), so managers can flip it with a
+   single tap instead of opening this modal.
+
+   Photo removal: each existing cake/flower thumbnail has a small ✕ button.
+   Clicking it clears the paired old_cake_image[]/old_flower_image[] hidden
+   input and swaps the thumbnail for a "will be removed" note. No backend
+   changes are needed for this — edit_order() in app.py already treats an
+   empty old_*_image[] value as "no image" for that item, and the existing
+   orphaned-Cloudinary-asset cleanup already deletes anything that drops out
+   of urls_after, which an emptied hidden input naturally causes. #}
+
+<div id="editOrderModal" class="fixed inset-0 z-50 hidden flex bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
+    <div class="bg-white max-w-lg w-full rounded-2xl border border-stone-200 shadow-xl overflow-hidden transform scale-95 transition-transform duration-200 max-h-[90vh] flex flex-col" id="editModalCard">
+        <div class="flex justify-between items-start px-6 pt-5 pb-4 border-b border-stone-100 bg-stone-50/60 shrink-0">
+            <div>
+                <h3 class="text-base font-semibold text-stone-900 font-sans">修改账单基础数据</h3>
+                <h4 class="text-xs font-bold tracking-wider text-stone-400 font-sans uppercase">Modify Voucher Metrics</h4>
+            </div>
+            <button type="button" onclick="closeEditModal()" class="text-stone-400 hover:text-stone-600 font-bold text-sm">✕</button>
+        </div>
+
+        <form id="editOrderForm" method="POST" enctype="multipart/form-data" class="text-sm font-sans p-6 overflow-y-auto space-y-4">
+
+            <div class="ef-field">
+                <label class="ef-label">📅 送达日期时间 <span class="ef-label-en">Delivery Date &amp; Time</span></label>
+                <input type="hidden" name="date" id="editDateHidden" value="">
+                <input type="hidden" name="time" id="editTimeHidden" value="">
+                <button type="button" id="editTimeTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openDeliveryDateWheelPicker('editTimeTriggerBtn','editDateHidden','editTimeHidden')">
+                    <span>选择送达日期时间</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                </button>
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">🚗 车费 <span class="ef-label-en">Delivery Fee</span></label>
+                <input type="text" name="delivery_fee" id="editDeliveryFee" placeholder="备注车费（不计入订单总额）" class="ef-input">
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">🏷️ 订单来源 <span class="ef-label-en">Source</span></label>
+                <input type="hidden" name="source" id="editSourceHidden" value="">
+                <button type="button" id="editSourceTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openSourcePicker('editSourceTriggerBtn','editSourceHidden','订单来源选择 (Select Source)')">
+                    <span>选择订单来源</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">👤 客人姓名 <span class="ef-label-en">Customer</span></label>
+                <input type="text" name="customer" id="editCustomer" required class="ef-input">
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">📍 送货地址 &amp; 电话 <span class="ef-label-en">Address &amp; Contact</span></label>
+                <input type="text" name="address" id="editAddress" class="ef-input">
+            </div>
+
+            <hr class="border-stone-200">
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <h4 class="font-semibold text-stone-700 text-xs tracking-wider uppercase">🎂 商品明细 (Order Items)</h4>
+                    <button type="button" onclick="addEditItemRow()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold px-3 py-1.5 rounded text-xs transition-colors">
+                        ➕ 添加商品
+                    </button>
+                </div>
+
+                <div id="editItemsContainer" class="w-full border border-stone-200/60 rounded-xl p-2.5 bg-stone-50/30 max-h-[420px] overflow-y-auto space-y-3"></div>
+            </div>
+
+            <div class="flex justify-end items-center gap-3 pt-4 border-t border-stone-100 mt-2 sticky bottom-0 bg-white">
+                <button type="button" onclick="closeEditModal()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold py-2.5 px-4 rounded transition-all">
+                    取消
+                </button>
+                <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold py-2.5 px-5 rounded transition-all shadow-sm">
+                    保存修改 (Update)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="deleteConfirmationModal" class="fixed inset-0 z-50 hidden bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
+    <div class="bg-white max-w-md w-full rounded border border-stone-200 shadow-xl overflow-hidden p-6 space-y-6 transform scale-95 transition-transform duration-200" id="modalCard">
+        <div class="flex items-start gap-4">
+            <div class="bg-rose-50 p-2 rounded-full text-rose-600 shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div class="space-y-1">
+                <h3 class="text-base font-semibold text-stone-900 font-sans">确认删除账单记录？</h3>
+                <h4 class="text-xs font-bold tracking-wider text-stone-400 font-sans uppercase">Confirm Voucher Deletion?</h4>
+            </div>
+        </div>
+
+        <div class="bg-stone-50 border border-stone-200/60 rounded p-3.5 text-xs text-stone-600 space-y-1 font-sans">
+            <p>您正在尝试永久删除该笔客户账单。此操作不可逆，云端数据库及关联的商品条目将同步移除。</p>
+            <p class="text-stone-400 italic">You are about to permanently delete this customer voucher. This action cannot be undone; cloud records and all sub-items will be removed immediately.</p>
+            <div class="pt-2 mt-2 border-t border-stone-200/60 font-numeric text-stone-800 flex justify-between">
+                <span>订单目标 (Target): <strong id="modalCustomerName" class="font-semibold text-stone-950"></strong></span>
+                <span id="modalOrderDate" class="text-stone-400"></span>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-end items-center gap-3 pt-2">
+            <button type="button" onclick="closeDeleteModal()" class="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold tracking-wider uppercase py-2.5 px-5 rounded transition-all font-sans order-2 sm:order-1 cursor-pointer">取消 / Cancel</button>
+            <a id="modalDeleteConfirmBtn" href="#" class="w-full sm:w-auto text-center bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold tracking-wider uppercase py-2.5 px-6 rounded transition-all shadow-xs font-sans order-1 sm:order-2 cursor-pointer">确认移除 / Permanently Delete</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const editOverlay = document.getElementById('editOrderModal');
+    const editCard = document.getElementById('editModalCard');
+
+    // Tracks which order the edit modal is currently open for, so the
+    // form's submit handler below knows which card to scroll back to once
+    // the page reloads after saving (see daily_records.html's restore
+    // script, which reads sessionStorage's 'mc_restore_order_id').
+    let _mcEditingOrderId = null;
+
+    // isPaid/paymentDate are still accepted here (daily_records.html still
+    // passes them) but are no longer used — payment status now lives on the
+    // order card's own "Mark as Paid" toggle instead of this form.
+    function openEditModal(orderId, date, source, customer, time, address, deliveryFee, isPaid, paymentDate, items) {
+        _mcEditingOrderId = orderId;
+
+        const container = document.getElementById('editItemsContainer');
+        container.innerHTML = '';
+        items.forEach(item => addEditItemRow(item));
+        document.getElementById('editOrderForm').setAttribute('action', `/edit_order/${orderId}`);
+        document.getElementById('editCustomer').value = customer;
+        document.getElementById('editAddress').value = address;
+        document.getElementById('editDeliveryFee').value = deliveryFee || '';
+
+        const editSourceHidden = document.getElementById('editSourceHidden');
+        const editSourceBtn = document.getElementById('editSourceTriggerBtn');
+        const editSourceSpan = editSourceBtn.querySelector('span');
+        editSourceHidden.value = (source && source !== '-') ? source : '';
+        if (editSourceHidden.value) {
+            editSourceSpan.textContent = editSourceHidden.value;
+            editSourceBtn.classList.remove('wp-empty');
+        } else {
+            editSourceSpan.textContent = '选择订单来源';
+            editSourceBtn.classList.add('wp-empty');
+        }
+
+        const editDateHidden = document.getElementById('editDateHidden');
+        const editTimeHidden = document.getElementById('editTimeHidden');
+        const editBtn = document.getElementById('editTimeTriggerBtn');
+        const editSpan = editBtn.querySelector('span');
+
+        editDateHidden.value = date || '';
+        editTimeHidden.value = (time && /^\d{1,2}:\d{2}$/.test(time)) ? time : '';
+
+        if (editDateHidden.value && editTimeHidden.value) {
+            editSpan.textContent = `${wpShortDayLabel(editDateHidden.value)} · ${editTimeHidden.value}`;
+            editBtn.classList.remove('wp-empty');
+        } else if (editDateHidden.value) {
+            editSpan.textContent = `${wpShortDayLabel(editDateHidden.value)} · --:--`;
+            editBtn.classList.remove('wp-empty');
+        } else {
+            editSpan.textContent = '选择送达日期时间';
+            editBtn.classList.add('wp-empty');
+        }
+
+        editOverlay.classList.remove('hidden');
+        editOverlay.classList.add('flex');
+        setTimeout(() => {
+            editCard.classList.remove('scale-95');
+            editCard.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeEditModal() {
+        editCard.classList.remove('scale-100');
+        editCard.classList.add('scale-95');
+        setTimeout(() => {
+            editOverlay.classList.remove('flex');
+            editOverlay.classList.add('hidden');
+        }, 150);
+    }
+
+    // Right before the edit form actually submits (full page POST +
+    // redirect), remember which order it was so the reloaded page can
+    // scroll straight back to that card instead of landing at the top.
+    document.getElementById('editOrderForm').addEventListener('submit', function() {
+        if (_mcEditingOrderId) {
+            try { sessionStorage.setItem('mc_restore_order_id', String(_mcEditingOrderId)); } catch (e) {}
+        }
+    });
+
+    // Renders the thumbnail block for one existing image (cake or flower),
+    // paired with the hidden old_*_image[] input that carries its URL.
+    // Clicking the ✕ clears the hidden input's value and swaps the
+    // thumbnail for a "will be removed" note — that's the only signal
+    // edit_order() on the backend needs to drop the image on save.
+    function _efImageBlock(fieldName, url, borderClass) {
+        const hidden = `<input type="hidden" name="${fieldName}" value="${url || ''}">`;
+        if (!url) {
+            return `${hidden}<div class="ef-image-slot"><div class="text-xs text-stone-400 ef-no-image">无图片</div></div>`;
+        }
+        return `${hidden}<div class="ef-image-slot"><div class="ef-image-preview">
+            <img src="${url}" class="w-16 h-16 object-cover rounded-lg border ${borderClass}">
+            <button type="button" class="ef-image-remove-btn" onclick="removeEditItemImage(this)" title="删除图片 (Remove photo)">✕</button>
+        </div></div>`;
+    }
+
+    // Clears the paired hidden old_*_image[] input (which sits right before
+    // .ef-image-slot in the markup) and replaces the thumbnail with a note
+    // confirming the image will be removed when the form is submitted.
+    function removeEditItemImage(btn) {
+        const slot = btn.closest('.ef-image-slot');
+        const hiddenInput = slot.previousElementSibling;
+        if (hiddenInput && hiddenInput.tagName === 'INPUT' && hiddenInput.type === 'hidden') {
+            hiddenInput.value = '';
+        }
+        slot.innerHTML = '<div class="ef-image-pending-removal">🗑️ 图片将被删除 (Will be removed on save)</div>';
+    }
+
+    function addEditItemRow(item = {}) {
+        const container = document.getElementById('editItemsContainer');
+        const row = document.createElement('div');
+        row.className = 'ef-item-card space-y-3';
+        row.innerHTML = `
+            <div class="flex justify-between items-center">
+                <span class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">商品项目</span>
+                <button type="button" onclick="this.closest('.ef-item-card').remove()" class="text-rose-600 hover:text-rose-800 text-lg font-bold leading-none px-1">✕</button>
+            </div>
+
+            <div>
+                <label class="ef-item-label">商品名称</label>
+                <input type="text" name="edit_item_name[]" value="${item.item_name || ''}" class="ef-input">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="ef-item-label">尺寸</label>
+                    <input type="text" name="edit_size[]" value="${item.size || ''}" class="ef-input">
+                </div>
+                <div>
+                    <label class="ef-item-label">金额</label>
+                    <input type="number" name="edit_price[]" value="${item.price || ''}" class="ef-input">
+                </div>
+            </div>
+
+            <div>
+                <label class="ef-item-label">备注</label>
+                <input type="text" name="edit_remarks[]" value="${item.remarks || ''}" class="ef-input">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="ef-item-label">🎂 当前蛋糕图</label>
+                    ${_efImageBlock('old_cake_image[]', item.image_url, 'border-stone-200')}
+                    <input type="file" name="editCakeImage[]" accept="image/*" class="w-full text-xs text-stone-400 file:py-1 file:px-2 file:border-0 file:bg-stone-200 file:rounded">
+                </div>
+                <div>
+                    <label class="ef-item-label">💐 当前花束图</label>
+                    ${_efImageBlock('old_flower_image[]', item.flower_image_url, 'border-rose-200')}
+                    <input type="file" name="editFlowerImage[]" accept="image/*" class="w-full text-xs text-stone-400 file:py-1 file:px-2 file:border-0 file:bg-stone-200 file:rounded">
+                </div>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    const modalOverlay = document.getElementById('deleteConfirmationModal');
+    const mCard = document.getElementById('modalCard');
+    const mCust = document.getElementById('modalCustomerName');
+    const mDate = document.getElementById('modalOrderDate');
+    const mBtn = document.getElementById('modalDeleteConfirmBtn');
+
+    function openDeleteModal(orderId, customerName, orderDate) {
+        mCust.textContent = customerName;
+        mDate.textContent = orderDate;
+        mBtn.setAttribute('href', `/delete_order/${orderId}`);
+        modalOverlay.classList.remove('hidden');
+        modalOverlay.classList.add('flex');
+        setTimeout(() => {
+            mCard.classList.remove('scale-95');
+            mCard.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeDeleteModal() {
+        mCard.classList.remove('scale-100');
+        mCard.classList.add('scale-95');
+        setTimeout(() => {
+            modalOverlay.classList.remove('flex');
+            modalOverlay.classList.add('hidden');
+        }, 150);
+    }
+
+    // Deleting a card removes it entirely, so there's no element to scroll
+    // back to afterwards — the best we can do is restore the raw scroll
+    // position the manager was at right before confirming.
+    mBtn.addEventListener('click', function() {
+        try { sessionStorage.setItem('mc_restore_scroll_y', String(window.scrollY)); } catch (e) {}
+    });
+
+    window.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) closeDeleteModal();
+        if (e.target === editOverlay && !editOverlay.classList.contains('hidden')) closeEditModal();
+    });
+</script>

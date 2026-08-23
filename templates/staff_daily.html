@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}နေ့စဉ်အော်ဒါမှတ်တမ်း — Memory Cake{% endblock %}
+
+{% block content %}
+    <style>
+        .section-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 18px;
+            transition: all .35s ease;
+        }
+
+        .section-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .input-section {
+            border-left: 5px solid #10b981;
+            box-shadow: 0 4px 12px rgba(0,0,0,.05);
+        }
+
+        .input-section:hover {
+            box-shadow: 0 18px 35px rgba(162, 243, 216, 0.12);
+        }
+
+        .dashboard-section {
+            box-shadow: 0 4px 12px rgba(125, 84, 58, 0.06);
+        }
+
+        .dashboard-section:hover {
+            box-shadow: 0 18px 35px rgba(83, 64, 35, 0.12);
+        }
+
+        .section-glow {
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border-radius: 9999px;
+            filter: blur(60px);
+            opacity: .4;
+            z-index: 0;
+        }
+
+        .input-glow {
+            top: -40px;
+            right: -40px;
+            background: #e4fbef;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .divider-label {
+            display: flex;
+            align-items: center;
+            margin: 18px 0;
+        }
+
+        .divider-label::before,
+        .divider-label::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, transparent, #d6d3d1, transparent);
+        }
+
+        .divider-label span {
+            margin: 0 20px;
+            padding: 8px 18px;
+            border: 1px solid #e7e5e4;
+            border-radius: 9999px;
+            background: #fafaf9;
+            color: #78716c;
+            font-size: 10px;
+            letter-spacing: .3em;
+            font-weight: 600;
+        }
+    </style>
+
+    <header class="py-8 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="space-y-1">
+                <h3 class="text-xl sm:text-2xl font-semibold tracking-wide text-stone-900 font-serif">
+                    နေ့စဉ်အော်ဒါစာရင်း အသေးစိတ်
+                </h3>
+                <p class="text-xs sm:text-sm text-stone-400 tracking-widest font-sans uppercase">
+                    ဝန်ထမ်း အော်ဒါ ထည့်သွင်းရန် · Staff Order Entry
+                </p>
+            </div>
+            <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-3 py-1.5 rounded-full tracking-widest uppercase border border-emerald-100">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                အော်ဒါအသစ်ထည့်နိုင်သည်
+            </span>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 pb-12">
+
+        {% include 'partials/order_form_staff.html' %}
+
+        <div class="divider-label no-print">
+            <span>DATA DASHBOARD</span>
+        </div>
+
+        <section class="bg-white mb-12 section-card dashboard-section">
+            <div class="h-1 bg-gradient-to-r from-emerald-700 via-emerald-500 to-emerald-700"></div>
+            <div class="section-glow dashboard-glow"></div>
+            <div class="p-5 bg-gradient-to-r from-stone-900 to-stone-800 border-b border-stone-700 flex justify-between items-center font-sans">
+                <h2 class="text-white text-sm font-semibold tracking-wider uppercase flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-base">📋</span>
+                    အော်ဒါစုစုပေါင်း
+                </h2>
+            </div>
+
+            {% include 'partials/daily_records.html' %}
+        </section>
+    </div>
+
+    {% include 'partials/order_modals_staff.html' %}
+{% endblock %}

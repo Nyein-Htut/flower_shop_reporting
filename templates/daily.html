@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}每日订单记录 — Memory Cake{% endblock %}
+
+{% block content %}
+    <style>
+        .section-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 18px;
+            transition: all .35s ease;
+        }
+
+        .section-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .input-section {
+            border-left: 5px solid #10b981;
+            box-shadow: 0 4px 12px rgba(0,0,0,.05);
+        }
+
+        .input-section:hover {
+            box-shadow: 0 18px 35px rgba(162, 243, 216, 0.12);
+        }
+
+        .dashboard-section {
+            box-shadow: 0 4px 12px rgba(125, 84, 58, 0.06);
+        }
+
+        .dashboard-section:hover {
+            box-shadow: 0 18px 35px rgba(83, 64, 35, 0.12);
+        }
+
+        .section-glow {
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border-radius: 9999px;
+            filter: blur(60px);
+            opacity: .4;
+            z-index: 0;
+        }
+
+        .input-glow {
+            top: -40px;
+            right: -40px;
+            background: #e4fbef;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .divider-label {
+            display: flex;
+            align-items: center;
+            margin: 18px 0;
+        }
+
+        .divider-label::before,
+        .divider-label::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, transparent, #d6d3d1, transparent);
+        }
+
+        .divider-label span {
+            margin: 0 20px;
+            padding: 8px 18px;
+            border: 1px solid #e7e5e4;
+            border-radius: 9999px;
+            background: #fafaf9;
+            color: #78716c;
+            font-size: 10px;
+            letter-spacing: .3em;
+            font-weight: 600;
+        }
+    </style>
+
+    <header class="py-8 px-4 sm:px-6 lg:px-8 no-print">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="space-y-1">
+                <h1 class="text-3xl sm:text-4xl font-semibold tracking-wide text-stone-900 font-serif">
+                    每日订单流水明细
+                </h1>
+                <p class="text-xs sm:text-sm text-stone-400 tracking-widest font-sans uppercase">
+                    云端数据中心 · 团队多端协同
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-3 w-full sm:w-auto">
+                <button onclick="exportTableToCSV()" class="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs uppercase tracking-widest font-sans font-semibold py-3.5 px-6 rounded transition-all shadow-xs border border-stone-300/60 cursor-pointer">
+                    导出 CSV 表格
+                </button>
+                <button id="pdfExportBtn" type="button" onclick="runDailyPdfExport()" class="w-full sm:w-auto bg-stone-950 hover:bg-stone-800 text-white text-xs uppercase tracking-widest font-sans font-semibold py-3.5 px-8 rounded transition-all shadow-sm cursor-pointer">
+                    下载 PDF 报表
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
+
+        {% include 'partials/order_form.html' %}
+
+        <div class="divider-label no-print">
+            <span>DATA DASHBOARD</span>
+        </div>
+
+        <section class="bg-white mb-12 section-card dashboard-section">
+            <div class="h-1 bg-gradient-to-r from-stone-900 via-stone-500 to-stone-900"></div>
+            <div class="section-glow dashboard-glow"></div>    
+            <div class="p-5 bg-gradient-to-r from-stone-900 to-stone-800 border-b border-stone-700 flex justify-between items-center no-print font-sans relative z-10">
+                <h2 class="section-title text-white">
+                    <span class="section-icon bg-white/10">📊</span>
+                    流水汇总看板
+                </h2>
+            </div>
+
+            {% include 'partials/daily_records.html' %}
+        </section>
+    </div>
+
+    {% include 'partials/order_modals.html' %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+     /* ===== "Export PDF for the current filter" flow =====
+        The Daily Records filter bar (day / month / year, same UI as the
+        Monthly Report page) already determines exactly which orders are
+        on screen. The PDF export just re-uses that same selection instead
+        of popping up a separate month-picker dialog — whatever period is
+        currently filtered is what gets exported.
+
+        Fetches that period's orders as JSON from /api/export_orders and
+        hands them straight to the fast native-jsPDF card renderer (see
+        base.html) — no page reload, no DOM screenshotting, so it stays
+        quick even for a full month of orders with photos. */
+     const dailyExportParams = {{ export_params | tojson | safe }};
+     const dailyExportLabel = {{ period_value | tojson | safe }};
+
+     async function runDailyPdfExport() {
+        const btn = document.getElementById('pdfExportBtn');
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '加载中…';
+        try {
+            const data = await fetchOrdersForExport(dailyExportParams);
+            await renderOrderCardsPDF({
+                ordersByDay: data.orders_by_day,
+                filename: `Memory_Cake_Orders_${dailyExportLabel}.pdf`,
+                showPayment: {{ show_payment | tojson | safe }},
+                emptyMessage: `No orders found for ${dailyExportLabel}.`,
+                onProgress: (loaded, total) => {
+                    btn.textContent = total ? `生成中… (${loaded}/${total})` : '生成中…';
+                }
+            });
+        } catch (err) {
+            alert('PDF 导出失败，请重试。\n' + (err.message || ''));
+            console.error(err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = original;
+        }
+     }
+
+        function exportTableToCSV() {
+            const cards = Array.from(document.querySelectorAll('#ordersRoot .order-card'));
+            if (cards.length === 0) {
+                alert('当前筛选范围内没有可导出的订单。\n(No orders in the current filter to export.)');
+                return;
+            }
+
+            const csvRows = [];
+            const headers = [
+                '日期 (Date)', '客人姓名 (Customer)', '订单来源 (Source)', '商品名称 (Item Name)', 
+                '尺寸 (Size)', '单项金额 (Price MMK)', '对应品类备注要求 (Remarks)', 
+                '送达时间 (Delivery Time)', '派送物流详细地址 (Address)', '总单总计 (Voucher Total)'
+            ];
+
+            csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+
+            cards.forEach((card) => {
+                const date = card.getAttribute('data-date') || '';
+                const customer = card.getAttribute('data-customer') || '';
+                const source = card.getAttribute('data-source') || '';
+                const time = card.getAttribute('data-time') || '';
+                const address = card.getAttribute('data-address') || '';
+                const total = card.getAttribute('data-total') || '';
+
+                const items = Array.from(card.querySelectorAll('.oc-item'));
+                items.forEach((item, idx) => {
+                    const itemName = item.getAttribute('data-item-name') || '';
+                    const size = item.getAttribute('data-size') || '-';
+                    const price = item.getAttribute('data-price') || '0';
+                    const remarks = item.getAttribute('data-remarks') || '-';
+
+                    const rowData = [
+                        date, customer, source, itemName, size,
+                        price, remarks, time, address,
+                        idx === 0 ? total : ''
+                    ];
+                    csvRows.push(rowData.map(val => `"${val.toString().replace(/"/g, '""')}"`).join(','));
+                });
+            });
+
+            const csvContent = "\uFEFF" + csvRows.join("\n");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const filename = `Memory_Cake_Orders_${new Date().toISOString().slice(0, 10)}.csv`;
+
+            if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+                // Old Edge/IE.
+                window.navigator.msSaveOrOpenBlob(blob, filename);
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 4000);
+            } else {
+                // Fallback for embedded/in-app browsers that don't support the
+                // `download` attribute at all — open the CSV in a new tab so
+                // the person can save it manually instead of the button
+                // silently doing nothing.
+                window.open(url, '_blank');
+            }
+        }
+    </script>
+{% endblock %}

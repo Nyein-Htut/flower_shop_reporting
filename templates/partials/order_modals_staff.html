@@ -1,0 +1,304 @@
+{# Staff edit + delete modals (Burmese). Payment and price are manager-only, so they're omitted from the UI.
+   Note: price is kept as a hidden field (not shown/editable) so that editing an order as staff never
+   wipes out a price the manager already entered — it just gets resubmitted unchanged.
+
+   Photo removal: each existing cake/flower thumbnail has a small ✕ button.
+   Clicking it clears the paired old_cake_image[]/old_flower_image[] hidden
+   input and swaps the thumbnail for a "will be removed" note. No backend
+   changes are needed for this — edit_order() in app.py already treats an
+   empty old_*_image[] value as "no image" for that item, and the existing
+   orphaned-Cloudinary-asset cleanup already deletes anything that drops out
+   of urls_after, which an emptied hidden input naturally causes. #}
+
+<div id="editOrderModal" class="fixed inset-0 z-50 hidden flex bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
+    <div class="bg-white max-w-lg w-full rounded-2xl border border-stone-200 shadow-xl overflow-hidden transform scale-95 transition-transform duration-200 max-h-[90vh] flex flex-col" id="editModalCard">
+        <div class="flex justify-between items-start px-6 pt-5 pb-4 border-b border-stone-100 bg-stone-50/60 shrink-0">
+            <div>
+                <h3 class="text-base font-semibold text-stone-900 font-sans">အော်ဒါ အချက်အလက် ပြင်ဆင်ရန်</h3>
+                <h4 class="text-xs font-bold tracking-wider text-stone-400 font-sans uppercase">ကုန်ပစ္စည်း အချက်အလက်များ ပြင်ဆင်ရန်</h4>
+            </div>
+            <button type="button" onclick="closeEditModal()" class="text-stone-400 hover:text-stone-600 font-bold text-sm">✕</button>
+        </div>
+
+        <form id="editOrderForm" method="POST" enctype="multipart/form-data" class="text-sm font-sans p-6 overflow-y-auto space-y-4">
+
+            <div class="ef-field">
+                <label class="ef-label">📅 ပေးပို့မည့် ရက်စွဲ &amp; အချိန် 
+                   <!--<span class="ef-label-en">Delivery Date &amp; Time</span>-->
+                </label>
+                <input type="hidden" name="date" id="editDateHidden" value="">
+                <input type="hidden" name="time" id="editTimeHidden" value="">
+                <button type="button" id="editTimeTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openDeliveryDateWheelPicker('editTimeTriggerBtn','editDateHidden','editTimeHidden')">
+                    <span>ရက်စွဲ နှင့် အချိန် ရွေးပါ</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                </button>
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">🚗 ကားခ 
+                   <!--<span class="ef-label-en">Delivery Fee</span>-->
+                </label>
+                <input type="text" name="delivery_fee" id="editDeliveryFee" placeholder="ကားခ မှတ်ချက် (ဈေးနှုန်းတွင် မပါဝင်ပါ)" class="ef-input">
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">🏷️ အော်ဒါလာသည့်နေရာ <!--<span class="ef-label-en">Source</span>--></label>
+                <input type="hidden" name="source" id="editSourceHidden" value="">
+                <button type="button" id="editSourceTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openSourcePicker('editSourceTriggerBtn','editSourceHidden','အော်ဒါလာသည့်နေရာ ရွေးပါ (Select Source)')">
+                    <span>အော်ဒါလာသည့်နေရာ ရွေးပါ</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">👤 ဖောက်သည်အမည် <!--<span class="ef-label-en">Customer</span>--></label>
+                <input type="text" name="customer" id="editCustomer" required class="ef-input">
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">📍 လိပ်စာ &amp; ဆက်သွယ်ရန် <!--<span class="ef-label-en">Address &amp; Contact</span>--></label>
+                <input type="text" name="address" id="editAddress" class="ef-input">
+            </div>
+
+            <hr class="border-stone-200">
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <h4 class="font-semibold text-stone-700 text-xs tracking-wider uppercase">🎂 ပစ္စည်းအသေးစိတ် </h4>
+                    <button type="button" onclick="addEditItemRow()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold px-3 py-1.5 rounded text-xs transition-colors">
+                        ➕ ပစ္စည်းထည့်ရန်
+                    </button>
+                </div>
+
+                <div id="editItemsContainer" class="w-full border border-stone-200/60 rounded-xl p-2.5 bg-stone-50/30 max-h-[420px] overflow-y-auto space-y-3"></div>
+            </div>
+
+            <div class="flex justify-end items-center gap-3 pt-4 border-t border-stone-100 mt-2 sticky bottom-0 bg-white">
+                <button type="button" onclick="closeEditModal()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold py-2.5 px-4 rounded transition-all">
+                    ပယ်ဖျက်
+                </button>
+                <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold py-2.5 px-5 rounded transition-all shadow-sm">
+                    မွမ်းမံမည် (Update)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="deleteConfirmationModal" class="fixed inset-0 z-50 hidden bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
+    <div class="bg-white max-w-md w-full rounded border border-stone-200 shadow-xl overflow-hidden p-6 space-y-6 transform scale-95 transition-transform duration-200" id="modalCard">
+        <div class="flex items-start gap-4">
+            <div class="bg-rose-50 p-2 rounded-full text-rose-600 shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div class="space-y-1">
+                <h3 class="text-base font-semibold text-stone-900 font-sans">အော်ဒါ မှတ်တမ်း ဖျက်ရန် သေချာပါသလား?</h3>
+                <h4 class="text-xs font-bold tracking-wider text-stone-400 font-sans uppercase">အတည်ပြု ဖျက်ရန်</h4>
+            </div>
+        </div>
+
+        <div class="bg-stone-50 border border-stone-200/60 rounded p-3.5 text-xs text-stone-600 space-y-1 font-sans">
+            <p>ဤဖောက်သည်၏ အော်ဒါ မှတ်တမ်းကို အပြီးတိုင် ဖျက်ရန် ဖြစ်ပါသည်။ ဤလုပ်ဆောင်ချက်ကို နောက်ပြန်လှည့်၍ မရပါ။</p>
+            <div class="pt-2 mt-2 border-t border-stone-200/60 font-numeric text-stone-800 flex justify-between">
+                <span>ပစ်မှတ်: <strong id="modalCustomerName" class="font-semibold text-stone-950"></strong></span>
+                <span id="modalOrderDate" class="text-stone-400"></span>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-end items-center gap-3 pt-2">
+            <button type="button" onclick="closeDeleteModal()" class="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold tracking-wider uppercase py-2.5 px-5 rounded transition-all font-sans order-2 sm:order-1 cursor-pointer">ပယ်ဖျက်</button>
+            <a id="modalDeleteConfirmBtn" href="#" class="w-full sm:w-auto text-center bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold tracking-wider uppercase py-2.5 px-6 rounded transition-all shadow-xs font-sans order-1 sm:order-2 cursor-pointer">အတည်ပြု ဖျက်မည်</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const editOverlay = document.getElementById('editOrderModal');
+    const editCard = document.getElementById('editModalCard');
+
+    // Tracks which order the edit modal is currently open for, so the
+    // form's submit handler below knows which card to scroll back to once
+    // the page reloads after saving (see daily_records.html's restore
+    // script, which reads sessionStorage's 'mc_restore_order_id').
+    let _mcEditingOrderId = null;
+
+    function openEditModal(orderId, date, source, customer, time, address, deliveryFee, isPaid, paymentDate, items) {
+        _mcEditingOrderId = orderId;
+
+        const container = document.getElementById('editItemsContainer');
+        container.innerHTML = '';
+        items.forEach(item => addEditItemRow(item));
+        document.getElementById('editOrderForm').setAttribute('action', `/edit_order/${orderId}`);
+        document.getElementById('editCustomer').value = customer;
+        document.getElementById('editAddress').value = address;
+        document.getElementById('editDeliveryFee').value = deliveryFee || '';
+
+        const editSourceHidden = document.getElementById('editSourceHidden');
+        const editSourceBtn = document.getElementById('editSourceTriggerBtn');
+        const editSourceSpan = editSourceBtn.querySelector('span');
+        editSourceHidden.value = (source && source !== '-') ? source : '';
+        if (editSourceHidden.value) {
+            editSourceSpan.textContent = editSourceHidden.value;
+            editSourceBtn.classList.remove('wp-empty');
+        } else {
+            editSourceSpan.textContent = 'အော်ဒါလာသည့်နေရာ ရွေးပါ';
+            editSourceBtn.classList.add('wp-empty');
+        }
+
+        const editDateHidden = document.getElementById('editDateHidden');
+        const editTimeHidden = document.getElementById('editTimeHidden');
+        const editBtn = document.getElementById('editTimeTriggerBtn');
+        const editSpan = editBtn.querySelector('span');
+
+        editDateHidden.value = date || '';
+        editTimeHidden.value = (time && /^\d{1,2}:\d{2}$/.test(time)) ? time : '';
+
+        if (editDateHidden.value && editTimeHidden.value) {
+            editSpan.textContent = `${wpShortDayLabel(editDateHidden.value)} · ${editTimeHidden.value}`;
+            editBtn.classList.remove('wp-empty');
+        } else if (editDateHidden.value) {
+            editSpan.textContent = `${wpShortDayLabel(editDateHidden.value)} · --:--`;
+            editBtn.classList.remove('wp-empty');
+        } else {
+            editSpan.textContent = 'ရက်စွဲ နှင့် အချိန် ရွေးပါ';
+            editBtn.classList.add('wp-empty');
+        }
+
+        editOverlay.classList.remove('hidden');
+        editOverlay.classList.add('flex');
+        setTimeout(() => {
+            editCard.classList.remove('scale-95');
+            editCard.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeEditModal() {
+        editCard.classList.remove('scale-100');
+        editCard.classList.add('scale-95');
+        setTimeout(() => {
+            editOverlay.classList.remove('flex');
+            editOverlay.classList.add('hidden');
+        }, 150);
+    }
+
+    // Right before the edit form actually submits (full page POST +
+    // redirect), remember which order it was so the reloaded page can
+    // scroll straight back to that card instead of landing at the top.
+    document.getElementById('editOrderForm').addEventListener('submit', function() {
+        if (_mcEditingOrderId) {
+            try { sessionStorage.setItem('mc_restore_order_id', String(_mcEditingOrderId)); } catch (e) {}
+        }
+    });
+
+    // Renders the thumbnail block for one existing image (cake or flower),
+    // paired with the hidden old_*_image[] input that carries its URL.
+    // Clicking the ✕ clears the hidden input's value and swaps the
+    // thumbnail for a "will be removed" note — that's the only signal
+    // edit_order() on the backend needs to drop the image on save.
+    function _efImageBlock(fieldName, url, borderClass) {
+        const hidden = `<input type="hidden" name="${fieldName}" value="${url || ''}">`;
+        if (!url) {
+            return `${hidden}<div class="ef-image-slot"><div class="text-xs text-stone-400 ef-no-image">ပုံမရှိပါ</div></div>`;
+        }
+        return `${hidden}<div class="ef-image-slot"><div class="ef-image-preview">
+            <img src="${url}" class="w-16 h-16 object-cover rounded-lg border ${borderClass}">
+            <button type="button" class="ef-image-remove-btn" onclick="removeEditItemImage(this)" title="ပုံဖျက်ရန် (Remove photo)">✕</button>
+        </div></div>`;
+    }
+
+    // Clears the paired hidden old_*_image[] input (which sits right before
+    // .ef-image-slot in the markup) and replaces the thumbnail with a note
+    // confirming the image will be removed when the form is submitted.
+    function removeEditItemImage(btn) {
+        const slot = btn.closest('.ef-image-slot');
+        const hiddenInput = slot.previousElementSibling;
+        if (hiddenInput && hiddenInput.tagName === 'INPUT' && hiddenInput.type === 'hidden') {
+            hiddenInput.value = '';
+        }
+        slot.innerHTML = '<div class="ef-image-pending-removal">🗑️ ပုံကို ဖျက်ပါမည် (Will be removed on save)</div>';
+    }
+
+    function addEditItemRow(item = {}) {
+        const container = document.getElementById('editItemsContainer');
+        const row = document.createElement('div');
+        row.className = 'ef-item-card space-y-3';
+        row.innerHTML = `
+            <input type="hidden" name="edit_price[]" value="${item.price || 0}">
+
+            <div class="flex justify-between items-center">
+                <span class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">ပစ္စည်းတစ်ခု</span>
+                <button type="button" onclick="this.closest('.ef-item-card').remove()" class="text-rose-600 hover:text-rose-800 text-lg font-bold leading-none px-1">✕</button>
+            </div>
+
+            <div>
+                <label class="ef-item-label">ပစ္စည်းအမည်</label>
+                <input type="text" name="edit_item_name[]" value="${item.item_name || ''}" class="ef-input">
+            </div>
+
+            <div>
+                <label class="ef-item-label">အရွယ်အစား</label>
+                <input type="text" name="edit_size[]" value="${item.size || ''}" class="ef-input">
+            </div>
+
+            <div>
+                <label class="ef-item-label">မှတ်ချက်</label>
+                <input type="text" name="edit_remarks[]" value="${item.remarks || ''}" class="ef-input">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="ef-item-label">🎂 လက်ရှိ ကိတ်မုန့်ပုံ</label>
+                    ${_efImageBlock('old_cake_image[]', item.image_url, 'border-stone-200')}
+                    <input type="file" name="editCakeImage[]" accept="image/*" class="w-full text-xs text-stone-400 file:py-1 file:px-2 file:border-0 file:bg-stone-200 file:rounded">
+                </div>
+                <div>
+                    <label class="ef-item-label">💐 လက်ရှိ ပန်းစည်းပုံ</label>
+                    ${_efImageBlock('old_flower_image[]', item.flower_image_url, 'border-rose-200')}
+                    <input type="file" name="editFlowerImage[]" accept="image/*" class="w-full text-xs text-stone-400 file:py-1 file:px-2 file:border-0 file:bg-stone-200 file:rounded">
+                </div>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    const modalOverlay = document.getElementById('deleteConfirmationModal');
+    const mCard = document.getElementById('modalCard');
+    const mCust = document.getElementById('modalCustomerName');
+    const mDate = document.getElementById('modalOrderDate');
+    const mBtn = document.getElementById('modalDeleteConfirmBtn');
+
+    function openDeleteModal(orderId, customerName, orderDate) {
+        mCust.textContent = customerName;
+        mDate.textContent = orderDate;
+        mBtn.setAttribute('href', `/delete_order/${orderId}`);
+        modalOverlay.classList.remove('hidden');
+        modalOverlay.classList.add('flex');
+        setTimeout(() => {
+            mCard.classList.remove('scale-95');
+            mCard.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeDeleteModal() {
+        mCard.classList.remove('scale-100');
+        mCard.classList.add('scale-95');
+        setTimeout(() => {
+            modalOverlay.classList.remove('flex');
+            modalOverlay.classList.add('hidden');
+        }, 150);
+    }
+
+    // Deleting a card removes it entirely, so there's no element to scroll
+    // back to afterwards — the best we can do is restore the raw scroll
+    // position the staff member was at right before confirming.
+    mBtn.addEventListener('click', function() {
+        try { sessionStorage.setItem('mc_restore_scroll_y', String(window.scrollY)); } catch (e) {}
+    });
+
+    window.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) closeDeleteModal();
+        if (e.target === editOverlay && !editOverlay.classList.contains('hidden')) closeEditModal();
+    });
+</script>
