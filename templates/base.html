@@ -10,7 +10,31 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght=0,400..700;1,400..700&family=Noto+Serif+SC:wght=400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              emerald: {
+                50:  '#faf6f1',
+                100: '#f0e6da',
+                200: '#e0ccb4',
+                300: '#cba97e',
+                400: '#a97f52',
+                500: '#8a6239',
+                600: '#6f4e2e',
+                700: '#5a3f26',
+                800: '#4a3728',
+                900: '#3d2e21',
+                950: '#241a13'
+              }
+            }
+          }
+        }
+      }
+    </script>
+        <style>
         body {
             font-family: 'Noto Sans Myanmar', 'Noto Serif SC', 'Playfair Display', "Georgia", serif;
             letter-spacing: 0.01em;
@@ -115,7 +139,7 @@
         .oc-total { font-size: 17px; font-weight: 700; color: #1c1917; margin-top: 4px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .oc-total-items { font-size: 12px; font-weight: 500; color: #78716c; margin-top: 5px; word-break: break-word; }
         .oc-payment-badge { font-size: 10.5px; font-weight: 700; margin-top: 6px; padding: 2px 8px; border-radius: 9999px; display: inline-block; }
-        .oc-paid { background: #ecfdf5; color: #047857; }
+        .oc-paid { background: #f0e6da; color: #5a3f26; }
         .oc-unpaid { background: #fff7ed; color: #b45309; }
         .oc-items { flex: 1; }
         .oc-item {
@@ -156,8 +180,8 @@
             transition: background-color .15s ease;
         }
         .oc-action-btn svg { width: 15px; height: 15px; }
-        .oc-action-edit { color: #047857; background: #ecfdf5; border-color: #d1fae5; }
-        .oc-action-edit:hover { background: #d1fae5; }
+        .oc-action-edit { color: #5a3f26; background: #f0e6da; border-color: #e0ccb4; }
+        .oc-action-edit:hover { background: #e0ccb4; }
         .oc-action-delete { color: #be123c; background: #fff1f2; border-color: #ffe4e6; }
         .oc-action-delete:hover { background: #ffe4e6; }
         .oc-payment-toggle {
@@ -177,11 +201,11 @@
             user-select: none;
         }
         .oc-payment-toggle.is-paid {
-            color: #047857;
-            background: #ecfdf5;
-            border-color: #d1fae5;
+            color: #5a3f26;
+            background: #f0e6da;
+            border-color: #e0ccb4;
         }
-        .oc-payment-checkbox { width: 13px; height: 13px; accent-color: #047857; cursor: pointer; }
+        .oc-payment-checkbox { width: 13px; height: 13px; accent-color: #5a3f26; cursor: pointer; }
         .oc-payment-date-label { font-weight: 600; opacity: .8; }
 
         .print-only { display: none !important; }
@@ -278,13 +302,13 @@
         .wp-fade-bottom { bottom: 0; background: linear-gradient(to top, #fff 10%, rgba(255,255,255,0)); }
         .wp-quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
         .wp-quick-btn { flex: 1; min-width: 68px; padding: 10px 6px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 10px; border: 1.5px solid #e7e5e4; color: #57534e; background: #fff; cursor: pointer; transition: all .15s ease; }
-        .wp-quick-btn:hover { border-color: #059669; color: #059669; background: #ecfdf5; }
+        .wp-quick-btn:hover { border-color: #6f4e2e; color: #6f4e2e; background: #f0e6da; }
         .wp-actions { display: flex; gap: 10px; }
         .wp-btn { flex: 1; padding: 12px; border-radius: 12px; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; border: none; }
         .wp-btn-cancel { background: #f5f5f4; color: #57534e; }
         .wp-btn-cancel:hover { background: #e7e5e4; }
-        .wp-btn-set { background: #059669; color: #fff; }
-        .wp-btn-set:hover { background: #047857; }
+        .wp-btn-set { background: #6f4e2e; color: #fff; }
+        .wp-btn-set:hover { background: #5a3f26; }
         .wp-trigger { width: 100%; text-align: left; border: 1px solid #d6d3d1; border-radius: 8px; padding: 12px; font-size: 14px; background: #fff; color: #1c1917; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .wp-trigger:hover { border-color: #a8a29e; }
         .wp-trigger.wp-empty { color: #a8a29e; }
@@ -299,8 +323,8 @@
             cursor: pointer; transition: all .15s ease; user-select: none;
         }
         .wp-source-item:hover { border-color: #a8a29e; background: #fafaf9; }
-        .wp-source-item.wp-source-selected { border-color: #059669; background: #ecfdf5; color: #047857; }
-        .wp-source-check { opacity: 0; color: #059669; font-weight: 700; transition: opacity .15s ease; }
+        .wp-source-item.wp-source-selected { border-color: #6f4e2e; background: #f0e6da; color: #5a3f26; }
+        .wp-source-check { opacity: 0; color: #6f4e2e; font-weight: 700; transition: opacity .15s ease; }
         .wp-source-item.wp-source-selected .wp-source-check { opacity: 1; }
 
         /* ===== Price Range Slider ===== */
@@ -308,7 +332,7 @@
         .pr-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #57534e; margin-bottom: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .pr-slider { position: relative; height: 32px; }
         .pr-track { position: absolute; top: 14px; left: 0; right: 0; height: 4px; background: #e7e5e4; border-radius: 999px; }
-        .pr-track-fill { position: absolute; top: 14px; height: 4px; background: #059669; border-radius: 999px; }
+        .pr-track-fill { position: absolute; top: 14px; height: 4px; background: #6f4e2e; border-radius: 999px; }
         .pr-slider input[type=range] {
             position: absolute; top: 0; left: 0; width: 100%; height: 32px;
             margin: 0; background: transparent; pointer-events: none;
@@ -317,12 +341,12 @@
         .pr-slider input[type=range]::-webkit-slider-thumb {
             pointer-events: all; -webkit-appearance: none; appearance: none;
             width: 18px; height: 18px; border-radius: 50%; background: #fff;
-            border: 3px solid #059669; cursor: pointer; margin-top: 0;
+            border: 3px solid #6f4e2e; cursor: pointer; margin-top: 0;
             box-shadow: 0 1px 3px rgba(0,0,0,.25); position: relative; z-index: 3;
         }
         .pr-slider input[type=range]::-moz-range-thumb {
             pointer-events: all; width: 18px; height: 18px; border-radius: 50%;
-            background: #fff; border: 3px solid #059669; cursor: pointer;
+            background: #fff; border: 3px solid #6f4e2e; cursor: pointer;
             box-shadow: 0 1px 3px rgba(0,0,0,.25);
         }
         .pr-slider input[type=range]::-webkit-slider-runnable-track { background: transparent; }
