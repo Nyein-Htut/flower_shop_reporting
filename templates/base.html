@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Iris Flower Data Hub{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght=0,400..700;1,400..700&family=Noto+Serif+SC:wght=400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans Myanmar', 'Noto Serif SC', 'Playfair Display', "Georgia", serif;
+            letter-spacing: 0.01em;
+            -webkit-font-smoothing: antialiased;
+        }
+        .font-numeric {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .unicode-text, .order-card, .order-card * {
+            font-family: 'Noto Sans Myanmar', 'Noto Serif SC', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .day-separator {
+            background: #ababa9;
+            color: #fff;
+            border-radius: 12px;
+            padding: 12px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            margin-bottom: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        @media (min-width: 640px) {
+            .day-separator { flex-direction: row; align-items: center; justify-content: space-between; }
+        }
+        .day-separator-date { font-weight: 600; letter-spacing: .02em; font-size: 15px; }
+        .day-separator-meta { font-size: 12.5px; opacity: .95; }
+
+        .orders-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        @media (min-width: 768px) {
+            .orders-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .order-card {
+            background: #fff;
+            border: 1px solid #e7e5e4;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(28,25,23,.04);
+            display: flex;
+            flex-direction: column;
+            transition: box-shadow .25s ease, transform .25s ease;
+        }
+        .order-card:hover {
+            box-shadow: 0 12px 28px rgba(28,25,23,.09);
+        }
+
+        .oc-header {
+            padding: 18px 22px;
+            border-bottom: 1px solid #f5f5f4;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            background: #fafaf9;
+        }
+        .manager-card {
+            padding: 10px !important;
+        }
+        .manager-card .oc-header {
+            padding: 8px 10px;
+        }
+        .manager-card .oc-date {
+            font-size: 11px;
+        }
+        .manager-card .oc-customer {
+            font-size: 14px;
+        }
+        .manager-card .oc-items {
+            gap: 6px;
+        }
+        .manager-card .oc-item {
+            padding: 6px;
+        }
+        .manager-card .oc-item-meta {
+            font-size: 11px;
+        }
+        .manager-card .oc-footer {
+            padding: 6px 10px;
+        }
+        .manager-card .oc-actions button {
+            padding: 5px 8px;
+        }
+        .manager-day-heading {
+            font-size: 12px;
+            font-weight: 600;
+            color: #78716c;
+            margin: 10px 0 5px;
+        }
+        .oc-date { font-size: 12px; color: #a8a29e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .oc-customer { font-size: 19px; font-weight: 600; color: #1c1917; margin-top: 3px; font-family: 'Playfair Display', 'Noto Serif SC', serif; }
+        .oc-source { font-size: 15px; font-weight: 600; color: #57534e; margin-top: 4px; }
+        .oc-total-wrap { text-align: right; flex-shrink: 0; }
+        .oc-total-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #a8a29e; }
+        .oc-total { font-size: 17px; font-weight: 700; color: #1c1917; margin-top: 4px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .oc-total-items { font-size: 12px; font-weight: 500; color: #78716c; margin-top: 5px; word-break: break-word; }
+        .oc-payment-badge { font-size: 10.5px; font-weight: 700; margin-top: 6px; padding: 2px 8px; border-radius: 9999px; display: inline-block; }
+        .oc-paid { background: #ecfdf5; color: #047857; }
+        .oc-unpaid { background: #fff7ed; color: #b45309; }
+        .oc-items { flex: 1; }
+        .oc-item {
+            display: flex;
+            flex-direction: column;
+            padding: 14px 22px;
+            border-bottom: 1px solid #f5f5f4;
+        }
+        .oc-item:last-child { border-bottom: 0; }
+        .oc-item-meta { flex: 1; min-width: 0; }
+        .oc-item-name { font-size: 14.5px; font-weight: 600; color: #1c1917; }
+        .oc-item-remarks { font-size: 12.5px; color: #be123c; margin-top: 6px; line-height: 1.55; }
+
+        .oc-footer {
+            padding: 16px 22px;
+            background: rgba(250,250,249,.7);
+            border-top: 1px solid #f5f5f4;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        @media (min-width: 480px) {
+            .oc-footer { flex-direction: row; align-items: center; justify-content: space-between; }
+        }
+        .oc-footer-text { font-size: 12.5px; color: #78716c; line-height: 1.6; }
+        .oc-time { font-weight: 600; color: #44403c; margin-right: 8px; }
+        .oc-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .oc-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 7px 12px;
+            border-radius: 9px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: background-color .15s ease;
+        }
+        .oc-action-btn svg { width: 15px; height: 15px; }
+        .oc-action-edit { color: #047857; background: #ecfdf5; border-color: #d1fae5; }
+        .oc-action-edit:hover { background: #d1fae5; }
+        .oc-action-delete { color: #be123c; background: #fff1f2; border-color: #ffe4e6; }
+        .oc-action-delete:hover { background: #ffe4e6; }
+        .oc-payment-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #b45309;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 9999px;
+            padding: 4px 10px;
+            margin-top: 6px;
+            cursor: pointer;
+            transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+            user-select: none;
+        }
+        .oc-payment-toggle.is-paid {
+            color: #047857;
+            background: #ecfdf5;
+            border-color: #d1fae5;
+        }
+        .oc-payment-checkbox { width: 13px; height: 13px; accent-color: #047857; cursor: pointer; }
+        .oc-payment-date-label { font-weight: 600; opacity: .8; }
+
+        .print-only { display: none !important; }
+        @media print {
+            .print-only { display: inline-block !important; }
+            .oc-payment-toggle { display: none !important; }
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .print-padding { padding: 4px !important; font-size: 11px !important; }
+        }
+
+        .ef-field {
+            background: #fafaf9;
+            border: 1px solid #f0efed;
+            border-radius: 14px;
+            padding: 13px 15px;
+        }
+        .ef-label {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #57534e;
+            margin-bottom: 7px;
+        }
+        .ef-label-en {
+            font-size: 9px;
+            font-weight: 500;
+            color: #a8a29e;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .ef-input {
+            width: 100%;
+            border: 1.5px solid #d6d3d1;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 15px;
+            background: #fff;
+            outline: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .ef-input:focus { border-color: #1c1917; }
+        .ef-checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1c1917;
+            cursor: pointer;
+        }
+        .ef-item-card {
+            background: #fff;
+            border: 1px solid #e7e5e4;
+            border-radius: 14px;
+            padding: 14px;
+        }
+        .ef-item-label {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #a8a29e;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .wp-overlay { position: fixed; inset: 0; background: rgba(28,25,23,.45); backdrop-filter: blur(2px); z-index: 200; display: none; align-items: flex-end; justify-content: center; }
+        .wp-overlay.active { display: flex; }
+        @media (min-width: 640px) { .wp-overlay { align-items: center; } }
+        .wp-sheet { background: #fff; width: 100%; max-width: 420px; border-radius: 24px 24px 0 0; padding: 24px 20px 20px; box-shadow: 0 -8px 30px rgba(0,0,0,.15); transform: translateY(100%); transition: transform .25s ease; }
+        @media (min-width: 640px) { .wp-sheet { border-radius: 20px; transform: translateY(20px); opacity: 0; transition: transform .25s ease, opacity .25s ease; } }
+        .wp-overlay.active .wp-sheet { transform: translateY(0); opacity: 1; }
+        .wp-title { font-size: 15px; font-weight: 700; color: #1c1917; margin-bottom: 14px; font-family: 'Playfair Display', 'Noto Serif SC', serif; }
+        .wp-display { text-align: center; font-size: 17px; color: #292524; margin-bottom: 8px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .wp-wheels { display: flex; gap: 6px; position: relative; height: 220px; margin: 8px 0 18px; }
+        .wp-col { flex: 1; position: relative; overflow: hidden; border-radius: 14px; background: #fafaf9; border: 1px solid #f0efed; }
+        .wp-scroll { height: 220px; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; position: relative; z-index: 1; }
+        .wp-scroll::-webkit-scrollbar { display: none; }
+        .wp-pad { height: 88px; }
+        .wp-item { height: 44px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center; font-size: 16px; color: #c7c2be; font-weight: 500; transition: color .15s ease, font-weight .15s ease; user-select: none; padding: 0 8px; text-align: center; }
+        .wp-item.wp-active { color: #1c1917; font-weight: 700; font-size: 18px; }
+        .wp-highlight-bar { position: absolute; top: 88px; left: 6px; right: 6px; height: 44px; background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); border: 1px solid #e7e5e4; pointer-events: none; z-index: 0; }
+        .wp-fade-top, .wp-fade-bottom { position: absolute; left: 0; right: 0; height: 70px; pointer-events: none; z-index: 2; }
+        .wp-fade-top { top: 0; background: linear-gradient(to bottom, #fff 10%, rgba(255,255,255,0)); }
+        .wp-fade-bottom { bottom: 0; background: linear-gradient(to top, #fff 10%, rgba(255,255,255,0)); }
+        .wp-quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+        .wp-quick-btn { flex: 1; min-width: 68px; padding: 10px 6px; text-align: center; font-size: 11.5px; font-weight: 600; border-radius: 10px; border: 1.5px solid #e7e5e4; color: #57534e; background: #fff; cursor: pointer; transition: all .15s ease; }
+        .wp-quick-btn:hover { border-color: #059669; color: #059669; background: #ecfdf5; }
+        .wp-actions { display: flex; gap: 10px; }
+        .wp-btn { flex: 1; padding: 12px; border-radius: 12px; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; border: none; }
+        .wp-btn-cancel { background: #f5f5f4; color: #57534e; }
+        .wp-btn-cancel:hover { background: #e7e5e4; }
+        .wp-btn-set { background: #059669; color: #fff; }
+        .wp-btn-set:hover { background: #047857; }
+        .wp-trigger { width: 100%; text-align: left; border: 1px solid #d6d3d1; border-radius: 8px; padding: 12px; font-size: 14px; background: #fff; color: #1c1917; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .wp-trigger:hover { border-color: #a8a29e; }
+        .wp-trigger.wp-empty { color: #a8a29e; }
+        .wp-trigger-icon { opacity: .5; flex-shrink: 0; }
+        body.wp-locked { overflow: hidden; }
+
+        .wp-source-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; max-height: 320px; overflow-y: auto; padding-right: 2px; }
+        .wp-source-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 13px 16px; border: 1.5px solid #e7e5e4; border-radius: 12px;
+            font-size: 14px; font-weight: 600; color: #44403c; background: #fff;
+            cursor: pointer; transition: all .15s ease; user-select: none;
+        }
+        .wp-source-item:hover { border-color: #a8a29e; background: #fafaf9; }
+        .wp-source-item.wp-source-selected { border-color: #059669; background: #ecfdf5; color: #047857; }
+        .wp-source-check { opacity: 0; color: #059669; font-weight: 700; transition: opacity .15s ease; }
+        .wp-source-item.wp-source-selected .wp-source-check { opacity: 1; }
+
+        /* ===== Price Range Slider ===== */
+        .pr-wrap { min-width: 240px; flex: 1 1 260px; }
+        .pr-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #57534e; margin-bottom: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .pr-slider { position: relative; height: 32px; }
+        .pr-track { position: absolute; top: 14px; left: 0; right: 0; height: 4px; background: #e7e5e4; border-radius: 999px; }
+        .pr-track-fill { position: absolute; top: 14px; height: 4px; background: #059669; border-radius: 999px; }
+        .pr-slider input[type=range] {
+            position: absolute; top: 0; left: 0; width: 100%; height: 32px;
+            margin: 0; background: transparent; pointer-events: none;
+            -webkit-appearance: none; appearance: none;
+        }
+        .pr-slider input[type=range]::-webkit-slider-thumb {
+            pointer-events: all; -webkit-appearance: none; appearance: none;
+            width: 18px; height: 18px; border-radius: 50%; background: #fff;
+            border: 3px solid #059669; cursor: pointer; margin-top: 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,.25); position: relative; z-index: 3;
+        }
+        .pr-slider input[type=range]::-moz-range-thumb {
+            pointer-events: all; width: 18px; height: 18px; border-radius: 50%;
+            background: #fff; border: 3px solid #059669; cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,.25);
+        }
+        .pr-slider input[type=range]::-webkit-slider-runnable-track { background: transparent; }
+        .pr-slider input[type=range]::-moz-range-track { background: transparent; }
+    </style>
+</head>
+    <div class="wp-overlay" id="wpTimeOverlay" onclick="if(event.target===this) closeWheelOverlay('wpTimeOverlay')">
+    <div class="wp-sheet">
+        <div class="wp-title">{% if readonly %}ပေးပို့မည့် အချိန် ရွေးပါ (Set Delivery Time){% else %}送达时间选择 (Set Delivery Time){% endif %}</div>
+        <div class="wp-display" id="wpTimeDisplay">--:--</div>
+        <div class="wp-wheels">
+            <div class="wp-fade-top"></div>
+            <div class="wp-fade-bottom"></div>
+            <div class="wp-col">
+                <div class="wp-highlight-bar"></div>
+                <div class="wp-scroll" id="wpHourScroll"></div>
+            </div>
+            <div class="wp-col">
+                <div class="wp-highlight-bar"></div>
+                <div class="wp-scroll" id="wpMinScroll"></div>
+            </div>
+        </div>
+        <div class="wp-quick">
+            <div class="wp-quick-btn" data-mins="0">{% if readonly %}ယခု Now{% else %}现在 Now{% endif %}</div>
+            <div class="wp-quick-btn" data-mins="30">{% if readonly %}+30 မိနစ်{% else %}+30分{% endif %}</div>
+            <div class="wp-quick-btn" data-mins="60">{% if readonly %}+1 နာရီ{% else %}+1小时{% endif %}</div>
+            <div class="wp-quick-btn" data-mins="120">{% if readonly %}+2 နာရီ{% else %}+2小时{% endif %}</div>
+        </div>
+        <div class="wp-actions">
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpTimeCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-set" id="wpTimeSetBtn">{% if readonly %}သတ်မှတ် Set{% else %}确定 Set{% endif %}</button>
+        </div>
+    </div>
+</div>
+
+<div class="wp-overlay" id="wpDateOverlay" onclick="if(event.target===this) closeWheelOverlay('wpDateOverlay')">
+    <div class="wp-sheet">
+        <div class="wp-title" id="wpDateTitle">{% if readonly %}ရက်စွဲ ရွေးပါ (Set Date){% else %}付款日期选择 (Set Payment Date){% endif %}</div>
+        <div class="wp-display" id="wpDateDisplay">--</div>
+        <div class="wp-wheels">
+            <div class="wp-fade-top"></div>
+            <div class="wp-fade-bottom"></div>
+            <div class="wp-col">
+                <div class="wp-highlight-bar"></div>
+                <div class="wp-scroll" id="wpDayScroll"></div>
+            </div>
+        </div>
+        <div class="wp-quick" id="wpDateQuick">
+            <div class="wp-quick-btn" data-offset="0">{% if readonly %}ယနေ့ Today{% else %}今天 Today{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-1">{% if readonly %}မနေ့က Yesterday{% else %}昨天 Yesterday{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-7">{% if readonly %}တစ်ပတ်ခန့် 1wk ago{% else %}一周前 1wk ago{% endif %}</div>
+        </div>
+        <div class="wp-actions">
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpDateCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-set" id="wpDateSetBtn">{% if readonly %}သတ်မှတ် Set{% else %}确定 Set{% endif %}</button>
+        </div>
+    </div>
+</div>
+
+<div class="wp-overlay" id="wpSourceOverlay" onclick="if(event.target===this) closeWheelOverlay('wpSourceOverlay')">
+    <div class="wp-sheet">
+        <div class="wp-title" id="wpSourceTitle">{% if readonly %}အော်ဒါလာသည့်နေရာ ရွေးပါ (Select Source){% else %}订单来源选择 (Select Source){% endif %}</div>
+        <div class="wp-source-list" id="wpSourceList"></div>
+        <div class="wp-actions">
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpSourceCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+        </div>
+    </div>
+</div>
+
+<div class="wp-overlay" id="wpMonthOverlay" onclick="if(event.target===this) closeWheelOverlay('wpMonthOverlay')">
+    <div class="wp-sheet">
+        <div class="wp-title" id="wpMonthTitle">{% if readonly %}လ ရွေးပါ (Select Month){% else %}月份选择 (Select Month){% endif %}</div>
+        <div class="wp-display" id="wpMonthDisplay">--</div>
+        <div class="wp-wheels">
+            <div class="wp-fade-top"></div>
+            <div class="wp-fade-bottom"></div>
+            <div class="wp-col">
+                <div class="wp-highlight-bar"></div>
+                <div class="wp-scroll" id="wpMonthScroll"></div>
+            </div>
+        </div>
+        <div class="wp-quick" id="wpMonthQuick">
+            <div class="wp-quick-btn" data-offset="0">{% if readonly %}ယခုလ This Month{% else %}本月 This Month{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-1">{% if readonly %}ပြီးခဲ့သောလ Last Month{% else %}上月 Last Month{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-12">{% if readonly %}တစ်နှစ်ခန့် 1yr ago{% else %}一年前 1yr ago{% endif %}</div>
+        </div>
+        <div class="wp-actions">
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpMonthCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-set" id="wpMonthSetBtn">{% if readonly %}သတ်မှတ် Set{% else %}确定 Set{% endif %}</button>
+        </div>
+    </div>
+</div>
+
+<div class="wp-overlay" id="wpYearOverlay" onclick="if(event.target===this) closeWheelOverlay('wpYearOverlay')">
+    <div class="wp-sheet">
+        <div class="wp-title" id="wpYearTitle">{% if readonly %}နှစ် ရွေးပါ (Select Year){% else %}年份选择 (Select Year){% endif %}</div>
+        <div class="wp-source-list" id="wpYearList"></div>
+        <div class="wp-actions">
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpYearCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const WP_FONT_SOURCES = {
+    myanmar:     { name: 'NotoSansMyanmar', file: 'NotoSansMyanmar-Regular.ttf', url: '/static/fonts/NotoSansMyanmar-Regular.ttf', style: 'normal' },
+    myanmarBold: { name: 'NotoSansMyanmar', file: 'NotoSansMyanmar-Bold.ttf',    url: '/static/fonts/NotoSansMyanmar-Bold.ttf',    style: 'bold'   },
+    cjk:         { name: 'NotoSansSC', file: 'WenQuanYiZenHei-Regular.ttf', url: '/static/fonts/WenQuanYiZenHei-Regular.ttf', style: 'normal' }
+};
+const _wpFontBase64Cache = {};
+
+function _wpArrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+}
+
+async function _wpGetFontBase64(key) {
+    if (_wpFontBase64Cache[key]) return _wpFontBase64Cache[key];
+    const src = WP_FONT_SOURCES[key];
+    const res = await fetch(src.url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const buf = await res.arrayBuffer();
+    const b64 = _wpArrayBufferToBase64(buf);
+    _wpFontBase64Cache[key] = b64;
+    return b64;
+}
+
+async function _wpRegisterFont(pdf, key) {
+    const src = WP_FONT_SOURCES[key];
+    try {
+        const b64 = await _wpGetFontBase64(key);
+        pdf.addFileToVFS(src.file, b64);
+        pdf.addFont(src.file, src.name, src.style);
+        return true;
+    } catch (e) {
+        console.warn('[PDF] Unicode font unavailable (' + key + '):', e.message || e);
+        return false;
+    }
+}
+
+let _wpMyanmarCanvasFontPromise = null;
+function _wpLoadMyanmarCanvasFonts() {
+    if (_wpMyanmarCanvasFontPromise) return _wpMyanmarCanvasFontPromise;
+    _wpMyanmarCanvasFontPromise = (async () => {
+        if (typeof FontFace === 'undefined') return false;
+        try {
+            const [regB64, boldB64] = await Promise.all([
+                _wpGetFontBase64('myanmar'),
+                _wpGetFontBase64('myanmarBold')
+            ]);
+            const regFace = new FontFace('WPMyanmarCanvas', `url(data:font/truetype;base64,${regB64})`, { weight: '400' });
+            const boldFace = new FontFace('WPMyanmarCanvas', `url(data:font/truetype;base64,${boldB64})`, { weight: '700' });
+            await Promise.all([regFace.load(), boldFace.load()]);
+            document.fonts.add(regFace);
+            document.fonts.add(boldFace);
+            await document.fonts.ready;
+            return true;
+        } catch (e) {
+            console.warn('[PDF] Myanmar canvas-shaping font failed to load, falling back to vector glyphs:', e.message || e);
+            return false;
+        }
+    })();
+    return _wpMyanmarCanvasFontPromise;
+}
+
+const WP_RASTER_SCALE = 4;
+const WP_PT_TO_MM = 25.4 / 72;
+
+let _wpRasterCanvas = null;
+function _wpRasterCtx() {
+    if (!_wpRasterCanvas) _wpRasterCanvas = document.createElement('canvas');
+    return _wpRasterCanvas.getContext('2d');
+}
+
+function _wpRasterizeMyanmarRun(text, fontSizePt, bold, rgb) {
+    const scalePx = Math.max(1, fontSizePt * WP_RASTER_SCALE);
+    const fontStr = `${bold ? '700' : '400'} ${scalePx}px WPMyanmarCanvas, sans-serif`;
+
+    let ctx = _wpRasterCtx();
+    ctx.font = fontStr;
+    const metrics = ctx.measureText(text);
+    let ascent = metrics.actualBoundingBoxAscent;
+    let descent = metrics.actualBoundingBoxDescent;
+    if (!isFinite(ascent) || !isFinite(descent) || (ascent <= 0 && descent <= 0)) {
+        ascent = scalePx * 0.9;
+        descent = scalePx * 0.28;
+    }
+    const padX = Math.max(2, Math.ceil(scalePx * 0.05));
+    const width = Math.max(1, Math.ceil(metrics.width) + padX * 2);
+    const height = Math.max(1, Math.ceil(ascent + descent) + 2);
+
+    _wpRasterCanvas.width = width;
+    _wpRasterCanvas.height = height;
+    ctx = _wpRasterCtx();
+    ctx.font = fontStr;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    ctx.fillText(text, padX, ascent + 1);
+
+    return {
+        dataUrl: _wpRasterCanvas.toDataURL('image/png'),
+        widthMM: (width / WP_RASTER_SCALE) * WP_PT_TO_MM,
+        heightMM: (height / WP_RASTER_SCALE) * WP_PT_TO_MM,
+        ascentMM: ((ascent + 1) / WP_RASTER_SCALE) * WP_PT_TO_MM
+    };
+}
+
+function _wpScriptFor(ch) {
+    const code = ch.codePointAt(0);
+    if ((code >= 0x1000 && code <= 0x109F) || (code >= 0xA9E0 && code <= 0xA9FF) || (code >= 0xAA60 && code <= 0xAA7F)) return 'myanmar';
+    if ((code >= 0x4E00 && code <= 0x9FFF) || (code >= 0x3400 && code <= 0x4DBF) || (code >= 0xF900 && code <= 0xFAFF) || (code >= 0x3000 && code <= 0x303F) || (code >= 0xFF00 && code <= 0xFFEF)) return 'cjk';
+    return 'latin';
+}
+
+function _wpStripInvisible(str) {
+    return String(str == null ? '' : str).replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+}
+
+function _wpTextNeedsScript(parts, script) {
+    for (const t of parts) {
+        if (!t) continue;
+        for (const ch of String(t)) {
+            if (_wpScriptFor(ch) === script) return true;
+        }
+    }
+    return false;
+}
+
+function _wpSplitRuns(text) {
+    const runs = [];
+    let cur = '', curScript = null;
+    for (const ch of String(text || '')) {
+        let s = _wpScriptFor(ch);
+        if (s === 'latin' && curScript && curScript !== 'latin' && /[\s.,:;!?()\-\/'"，。！？：；（）]/.test(ch)) {
+            s = curScript;
+        }
+        if (curScript === null) { curScript = s; cur = ch; }
+        else if (s === curScript) { cur += ch; }
+        else { runs.push({ text: cur, script: curScript }); cur = ch; curScript = s; }
+    }
+    if (cur) runs.push({ text: cur, script: curScript });
+    return runs.length ? runs : [{ text: '', script: 'latin' }];
+}
+
+async function wpPrepareUnicodeText(pdf, textParts) {
+    let _lastTextColor = [0, 0, 0];
+    const _origSetTextColor = pdf.setTextColor.bind(pdf);
+    pdf.setTextColor = function(...args) {
+        if (args.length === 1 && typeof args[0] === 'number') {
+            _lastTextColor = [args[0], args[0], args[0]];
+        } else if (args.length >= 3 && typeof args[0] === 'number') {
+            _lastTextColor = [args[0], args[1], args[2]];
+        }
+        return _origSetTextColor(...args);
+    };
+
+    const needMyanmar = _wpTextNeedsScript(textParts, 'myanmar');
+    const needCjk = _wpTextNeedsScript(textParts, 'cjk');
+    const available = { myanmar: false, myanmarCanvas: false, cjk: false };
+
+    if (needMyanmar) {
+        const [okReg, okBold] = await Promise.all([
+            _wpRegisterFont(pdf, 'myanmar'),
+            _wpRegisterFont(pdf, 'myanmarBold')
+        ]);
+        available.myanmar = okReg || okBold;
+        available.myanmarCanvas = await _wpLoadMyanmarCanvasFonts();
+    }
+    if (needCjk) {
+        available.cjk = await _wpRegisterFont(pdf, 'cjk');
+    }
+
+    function fontForScript(script, style) {
+        if (script === 'myanmar' && available.myanmar) return ['NotoSansMyanmar', style === 'bold' ? 'bold' : 'normal'];
+        if (script === 'cjk' && available.cjk) return ['NotoSansSC', 'normal'];
+        return ['helvetica', style || 'normal'];
+    }
+
+    function text(str, x, y, opts = {}) {
+        const { align = 'left', fontSize, style = 'normal' } = opts;
+        const effFontSize = fontSize || 9;
+        pdf.setFontSize(effFontSize);
+        const runs = _wpSplitRuns(_wpStripInvisible(str));
+        if (runs.length === 1 && runs[0].script === 'latin') {
+            pdf.setFont('helvetica', style);
+            pdf.text(runs[0].text, x, y, { align });
+            return;
+        }
+
+        const runInfo = runs.map(r => {
+            if (r.script === 'myanmar' && available.myanmarCanvas) {
+                try {
+                    const raster = _wpRasterizeMyanmarRun(r.text, effFontSize, style === 'bold', _lastTextColor);
+                    return { raster, widthMM: raster.widthMM };
+                } catch (e) {
+                    console.warn('[PDF] Myanmar rasterization failed, falling back to vector glyphs:', e.message || e);
+                }
+            }
+            const [fname, fstyle] = fontForScript(r.script, style);
+            pdf.setFont(fname, fstyle);
+            pdf.setFontSize(effFontSize);
+            return { run: r, widthMM: pdf.getTextWidth(r.text) };
+        });
+
+        const totalWidth = runInfo.reduce((a, b) => a + b.widthMM, 0);
+        let curX = x;
+        if (align === 'right') curX = x - totalWidth;
+        else if (align === 'center') curX = x - totalWidth / 2;
+
+        runInfo.forEach(info => {
+            if (info.raster) {
+                try {
+                    pdf.addImage(info.raster.dataUrl, 'PNG', curX, y - info.raster.ascentMM, info.raster.widthMM, info.raster.heightMM, undefined, 'FAST');
+                } catch (e) {}
+            } else {
+                const [fname, fstyle] = fontForScript(info.run.script, style);
+                pdf.setFont(fname, fstyle);
+                pdf.setFontSize(effFontSize);
+                pdf.text(info.run.text, curX, y);
+            }
+            curX += info.widthMM;
+        });
+    }
+
+    function dominantScript(str) {
+        for (const ch of String(str || '')) {
+            const s = _wpScriptFor(ch);
+            if (s !== 'latin') return s;
+        }
+        return 'latin';
+    }
+
+    function lines(str, maxWidth, fontSize) {
+        const clean = _wpStripInvisible(str);
+        const script = dominantScript(clean);
+        const [fname, fstyle] = fontForScript(script, 'normal');
+        pdf.setFont(fname, fstyle);
+        pdf.setFontSize(fontSize);
+        return pdf.splitTextToSize(clean, maxWidth);
+    }
+
+    function truncateToWidth(str, maxWidth, fontSize, style) {
+        const s = _wpStripInvisible(str);
+        const script = dominantScript(s);
+        const [fname, fstyle] = fontForScript(script, style);
+        pdf.setFont(fname, fstyle);
+        pdf.setFontSize(fontSize);
+        if (pdf.getTextWidth(s) <= maxWidth) return s;
+        const ellipsisW = pdf.getTextWidth('\u2026');
+        let lo = 0, hi = s.length;
+        while (lo < hi) {
+            const mid = Math.ceil((lo + hi) / 2);
+            if (pdf.getTextWidth(s.slice(0, mid)) + ellipsisW <= maxWidth) lo = mid; else hi = mid - 1;
+        }
+        return lo > 0 ? s.slice(0, lo) + '\u2026' : '\u2026';
+    }
+
+    function textClipped(str, x, y, maxWidth, opts = {}) {
+        const truncated = truncateToWidth(str, maxWidth, opts.fontSize || 9, opts.style);
+        text(truncated, x, y, opts);
+    }
+
+    function drawLines(linesArr, x, y, opts = {}) {
+        const { fontSize, lineHeight, style = 'normal' } = opts;
+        const lh = lineHeight || (fontSize ? fontSize * 0.45 : 4);
+        (linesArr || []).forEach((ln, i) => text(ln, x, y + i * lh, { fontSize, style }));
+    }
+
+    return { text, textClipped, lines, drawLines, fontForScript, available };
+}
+
+const WP_ITEM_H = 44;
+
+function wpBuildColumn(containerId, items, initialIndex, onSettle) {
+    let container = document.getElementById(containerId);
+    const fresh = container.cloneNode(false);
+    container.parentNode.replaceChild(fresh, container);
+    container = fresh;
+
+    container.innerHTML = '';
+    const topPad = document.createElement('div');
+    topPad.className = 'wp-pad';
+    container.appendChild(topPad);
+
+    items.forEach((it) => {
+        const el = document.createElement('div');
+        el.className = 'wp-item';
+        el.textContent = it.label;
+        container.appendChild(el);
+    });
+
+    const botPad = document.createElement('div');
+    botPad.className = 'wp-pad';
+    container.appendChild(botPad);
+
+    let currentIndex = initialIndex;
+    let settleTimer = null;
+
+    function highlight(idx) {
+        const nodes = container.querySelectorAll('.wp-item');
+        nodes.forEach((el, i) => el.classList.toggle('wp-active', i === idx));
+    }
+
+    function settle(idx, smooth) {
+        idx = Math.max(0, Math.min(items.length - 1, idx));
+        currentIndex = idx;
+        highlight(idx);
+        const target = idx * WP_ITEM_H;
+        if (Math.abs(container.scrollTop - target) > 1) {
+            container.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'auto' });
+        }
+        onSettle(idx);
+    }
+
+    container.addEventListener('scroll', () => {
+        const idx = Math.round(container.scrollTop / WP_ITEM_H);
+        highlight(Math.max(0, Math.min(items.length - 1, idx)));
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => settle(idx, true), 120);
+    });
+
+    container.querySelectorAll('.wp-item').forEach((el, i) => {
+        el.addEventListener('click', () => settle(i, true));
+    });
+
+    settle(initialIndex, false);
+
+    return { get index() { return currentIndex; }, setIndex(i) { settle(i, true); } };
+}
+
+function wpLockBody() { document.body.classList.add('wp-locked'); }
+function wpUnlockBody() { document.body.classList.remove('wp-locked'); }
+
+function closeWheelOverlay(id) {
+    document.getElementById(id).classList.remove('active');
+    wpUnlockBody();
+}
+
+const WP_SOURCE_OPTIONS = ['Ko Kyaw', 'Iris', 'Khaing Win Kyi', 'Memory Cake', 'Other'];
+
+function openSourcePicker(triggerBtnId, hiddenInputId, titleText) {
+    const btn = document.getElementById(triggerBtnId);
+    const span = btn.querySelector('span');
+    const hidden = document.getElementById(hiddenInputId);
+    const listEl = document.getElementById('wpSourceList');
+
+    if (titleText) {
+        document.getElementById('wpSourceTitle').textContent = titleText;
+    }
+
+    listEl.innerHTML = '';
+    WP_SOURCE_OPTIONS.forEach((opt) => {
+        const item = document.createElement('div');
+        item.className = 'wp-source-item' + (hidden.value === opt ? ' wp-source-selected' : '');
+        item.innerHTML = `<span>${opt}</span><span class="wp-source-check">✓</span>`;
+        item.addEventListener('click', () => {
+            hidden.value = opt;
+            span.textContent = opt;
+            btn.classList.remove('wp-empty');
+            closeWheelOverlay('wpSourceOverlay');
+        });
+        listEl.appendChild(item);
+    });
+
+    document.getElementById('wpSourceOverlay').classList.add('active');
+    wpLockBody();
+
+    document.getElementById('wpSourceCancelBtn').onclick = () => closeWheelOverlay('wpSourceOverlay');
+}
+
+function openTimeWheelPicker(triggerBtnId, hiddenInputId) {
+    const btn = document.getElementById(triggerBtnId);
+    const span = btn.querySelector('span');
+    const hidden = document.getElementById(hiddenInputId);
+
+    let h, m;
+    if (hidden.value && /^\d{1,2}:\d{2}$/.test(hidden.value)) {
+        [h, m] = hidden.value.split(':').map(v => parseInt(v, 10));
+    } else {
+        const now = new Date();
+        h = now.getHours();
+        m = now.getMinutes();
+    }
+
+    const overlay = document.getElementById('wpTimeOverlay');
+    overlay.classList.add('active');
+    wpLockBody();
+
+    const hourItems = Array.from({ length: 24 }, (_, i) => ({ label: String(i).padStart(2, '0'), value: i }));
+    const minItems = Array.from({ length: 60 }, (_, i) => ({ label: String(i).padStart(2, '0'), value: i }));
+
+    const state = { hourIdx: h, minIdx: m };
+
+    function updateDisplay() {
+        const hh = String(hourItems[state.hourIdx].value).padStart(2, '0');
+        const mm = String(minItems[state.minIdx].value).padStart(2, '0');
+        document.getElementById('wpTimeDisplay').textContent = `${hh}:${mm}`;
+    }
+
+    const hourCol = wpBuildColumn('wpHourScroll', hourItems, h, (idx) => { state.hourIdx = idx; updateDisplay(); });
+    const minCol = wpBuildColumn('wpMinScroll', minItems, m, (idx) => { state.minIdx = idx; updateDisplay(); });
+    updateDisplay();
+
+    document.querySelectorAll('#wpTimeOverlay .wp-quick-btn').forEach(qbtn => {
+        qbtn.onclick = () => {
+            const now2 = new Date();
+            now2.setMinutes(now2.getMinutes() + parseInt(qbtn.dataset.mins, 10));
+            hourCol.setIndex(now2.getHours());
+            minCol.setIndex(now2.getMinutes());
+        };
+    });
+
+    document.getElementById('wpTimeSetBtn').onclick = () => {
+        const hh = String(hourItems[hourCol.index].value).padStart(2, '0');
+        const mm = String(minItems[minCol.index].value).padStart(2, '0');
+        hidden.value = `${hh}:${mm}`;
+        span.textContent = `${hh}:${mm}`;
+        btn.classList.remove('wp-empty');
+        closeWheelOverlay('wpTimeOverlay');
+    };
+    document.getElementById('wpTimeCancelBtn').onclick = () => closeWheelOverlay('wpTimeOverlay');
+}
+
+function wpFormatRelativeDay(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'long' });
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (offset === 0) return `Today · ${weekday}`;
+    if (offset === -1) return `Yesterday · ${weekday}`;
+    if (offset === 1) return `Tomorrow · ${weekday}`;
+    return `${dateStr} · ${weekday}`;
+}
+function wpIsoForOffset(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return d.toISOString().slice(0, 10);
+}
+function wpFormatDisplayFromISO(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((d - today) / 86400000);
+    return wpFormatRelativeDay(diffDays);
+}
+function wpShortDayLabel(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((d - today) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays === -1) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function openDateWheelPicker(triggerBtnIdOrCfg, hiddenInputId) {
+    let cfg;
+    if (typeof triggerBtnIdOrCfg === 'object') {
+        cfg = triggerBtnIdOrCfg;
+    } else {
+        const btn = document.getElementById(triggerBtnIdOrCfg);
+        const span = btn.querySelector('span');
+        const hidden = document.getElementById(hiddenInputId);
+        cfg = {
+            initialValue: hidden.value,
+            onConfirm: (value, label) => {
+                hidden.value = value;
+                span.textContent = label;
+                btn.classList.remove('wp-empty');
+            }
+        };
+    }
+
+    document.getElementById('wpDateTitle').textContent = cfg.title || '付款日期选择 (Set Payment Date)';
+    const quickWrap = document.getElementById('wpDateQuick');
+    quickWrap.innerHTML = cfg.quickHtml || `
+        <div class="wp-quick-btn" data-offset="0">今天 Today</div>
+        <div class="wp-quick-btn" data-offset="-1">昨天 Yesterday</div>
+        <div class="wp-quick-btn" data-offset="-7">一周前 1wk ago</div>
+    `;
+
+    const RANGE_BACK = 120, RANGE_FWD = 14;
+    const dayItems = [];
+    for (let o = -RANGE_BACK; o <= RANGE_FWD; o++) {
+        dayItems.push({ label: wpFormatRelativeDay(o), value: wpIsoForOffset(o) });
+    }
+
+    let initialIndex = RANGE_BACK;
+    if (cfg.initialValue) {
+        const idx = dayItems.findIndex(it => it.value === cfg.initialValue);
+        if (idx >= 0) initialIndex = idx;
+    }
+
+    const overlay = document.getElementById('wpDateOverlay');
+    overlay.classList.add('active');
+    wpLockBody();
+
+    const state = { idx: initialIndex };
+    function updateDisplay() {
+        document.getElementById('wpDateDisplay').textContent = dayItems[state.idx].label;
+    }
+    const dayCol = wpBuildColumn('wpDayScroll', dayItems, initialIndex, (idx) => { state.idx = idx; updateDisplay(); });
+    updateDisplay();
+
+    quickWrap.querySelectorAll('.wp-quick-btn').forEach(qbtn => {
+        qbtn.onclick = () => dayCol.setIndex(RANGE_BACK + parseInt(qbtn.dataset.offset, 10));
+    });
+
+    document.getElementById('wpDateSetBtn').onclick = () => {
+        const chosen = dayItems[dayCol.index];
+        closeWheelOverlay('wpDateOverlay');
+        cfg.onConfirm(chosen.value, chosen.label);
+    };
+    document.getElementById('wpDateCancelBtn').onclick = () => {
+        closeWheelOverlay('wpDateOverlay');
+        if (cfg.onCancel) cfg.onCancel();
+    };
+}
+
+function openFilterDayPicker() {
+    const btn = document.getElementById('filterDayTriggerBtn');
+    const span = btn.querySelector('span');
+    const hidden = document.getElementById('filterDayHidden');
+
+    document.getElementById('wpDateTitle').textContent = {% if readonly %}'ရက်စွဲ ရွေးပါ (Filter by Day)'{% else %}'按日期筛选 (Filter by Day)'{% endif %};
+    const quickWrap = document.getElementById('wpDateQuick');
+    quickWrap.innerHTML = {% if readonly %}`
+        <div class="wp-quick-btn" data-offset="0">ယနေ့ Today</div>
+        <div class="wp-quick-btn" data-offset="-1">မနေ့က Yesterday</div>
+        <div class="wp-quick-btn" data-offset="-7">တစ်ပတ်ခန့် 1wk ago</div>
+    `{% else %}`
+        <div class="wp-quick-btn" data-offset="0">今天 Today</div>
+        <div class="wp-quick-btn" data-offset="-1">昨天 Yesterday</div>
+        <div class="wp-quick-btn" data-offset="-7">一周前 1wk ago</div>
+    `{% endif %};
+
+    const RANGE_BACK = 180, RANGE_FWD = 60;
+    const dayItems = [];
+    for (let o = -RANGE_BACK; o <= RANGE_FWD; o++) {
+        dayItems.push({ label: wpFormatRelativeDay(o), value: wpIsoForOffset(o) });
+    }
+
+    let initialIndex = RANGE_BACK;
+    if (hidden.value) {
+        const idx = dayItems.findIndex(it => it.value === hidden.value);
+        if (idx >= 0) initialIndex = idx;
+    }
+
+    const overlay = document.getElementById('wpDateOverlay');
+    overlay.classList.add('active');
+    wpLockBody();
+
+    const state = { idx: initialIndex };
+    function updateDisplay() {
+        document.getElementById('wpDateDisplay').textContent = dayItems[state.idx].label;
+    }
+    const dayCol = wpBuildColumn('wpDayScroll', dayItems, initialIndex, (idx) => { state.idx = idx; updateDisplay(); });
+    updateDisplay();
+
+    quickWrap.querySelectorAll('.wp-quick-btn').forEach(qbtn => {
+        qbtn.onclick = () => dayCol.setIndex(RANGE_BACK + parseInt(qbtn.dataset.offset, 10));
+    });
+
+    document.getElementById('wpDateSetBtn').onclick = () => {
+        const chosen = dayItems[dayCol.index];
+        hidden.value = chosen.value;
+        span.textContent = chosen.label;
+        btn.classList.remove('wp-empty');
+        closeWheelOverlay('wpDateOverlay');
+        document.getElementById('dailyFilterForm').submit();
+    };
+    document.getElementById('wpDateCancelBtn').onclick = () => closeWheelOverlay('wpDateOverlay');
+}
+
+function openSourceFilterPicker() {
+    const btn = document.getElementById('filterSourceTriggerBtn');
+    const span = btn.querySelector('span');
+    const hidden = document.getElementById('filterSourceHidden');
+    const listEl = document.getElementById('wpSourceList');
+
+    document.getElementById('wpSourceTitle').textContent = '按来源筛选 (Filter by Source)';
+
+    const allLabel = '全部来源 (All Sources)';
+    const options = [allLabel, ...WP_SOURCE_OPTIONS];
+
+    listEl.innerHTML = '';
+    options.forEach((opt) => {
+        const val = opt === allLabel ? '' : opt;
+        const item = document.createElement('div');
+        item.className = 'wp-source-item' + (hidden.value === val ? ' wp-source-selected' : '');
+        item.innerHTML = `<span>${opt}</span><span class="wp-source-check">✓</span>`;
+        item.addEventListener('click', () => {
+            hidden.value = val;
+            span.textContent = val || allLabel;
+            btn.classList.toggle('wp-empty', !val);
+            closeWheelOverlay('wpSourceOverlay');
+            document.getElementById('dailyFilterForm').submit();
+        });
+        listEl.appendChild(item);
+    });
+
+    document.getElementById('wpSourceOverlay').classList.add('active');
+    wpLockBody();
+
+    document.getElementById('wpSourceCancelBtn').onclick = () => closeWheelOverlay('wpSourceOverlay');
+}
+
+function openDeliveryDateWheelPicker(triggerBtnId, dateHiddenId, timeHiddenId) {
+    const dateHidden = document.getElementById(dateHiddenId);
+
+    document.getElementById('wpDateTitle').textContent = {% if readonly %}'ပေးပို့မည့် ရက်စွဲ ရွေးပါ (Set Delivery Date)'{% else %}'送达日期选择 (Set Delivery Date)'{% endif %};
+    const quickWrap = document.getElementById('wpDateQuick');
+    quickWrap.innerHTML = {% if readonly %}`
+        <div class="wp-quick-btn" data-offset="0">ယနေ့ Today</div>
+        <div class="wp-quick-btn" data-offset="1">မနက်ဖြန် Tomorrow</div>
+        <div class="wp-quick-btn" data-offset="2">တစ်ရက်ကျော် +2 Days</div>
+    `{% else %}`
+        <div class="wp-quick-btn" data-offset="0">今天 Today</div>
+        <div class="wp-quick-btn" data-offset="1">明天 Tomorrow</div>
+        <div class="wp-quick-btn" data-offset="2">后天 +2 Days</div>
+    `{% endif %};
+
+    const RANGE_BACK = 90, RANGE_FWD = 90;
+    const dayItems = [];
+    for (let o = -RANGE_BACK; o <= RANGE_FWD; o++) {
+        dayItems.push({ label: wpFormatRelativeDay(o), value: wpIsoForOffset(o) });
+    }
+
+    let initialIndex = RANGE_BACK;
+    if (dateHidden.value) {
+        const idx = dayItems.findIndex(it => it.value === dateHidden.value);
+        if (idx >= 0) initialIndex = idx;
+    }
+
+    const overlay = document.getElementById('wpDateOverlay');
+    overlay.classList.add('active');
+    wpLockBody();
+
+    const state = { idx: initialIndex };
+    function updateDisplay() {
+        document.getElementById('wpDateDisplay').textContent = dayItems[state.idx].label;
+    }
+    const dayCol = wpBuildColumn('wpDayScroll', dayItems, initialIndex, (idx) => { state.idx = idx; updateDisplay(); });
+    updateDisplay();
+
+    quickWrap.querySelectorAll('.wp-quick-btn').forEach(qbtn => {
+        qbtn.onclick = () => dayCol.setIndex(RANGE_BACK + parseInt(qbtn.dataset.offset, 10));
+    });
+
+    document.getElementById('wpDateSetBtn').onclick = () => {
+        const chosenDate = dayItems[dayCol.index];
+        dateHidden.value = chosenDate.value;
+        closeWheelOverlay('wpDateOverlay');
+        _openDeliveryTimeStep(triggerBtnId, timeHiddenId, chosenDate.value);
+    };
+    document.getElementById('wpDateCancelBtn').onclick = () => closeWheelOverlay('wpDateOverlay');
+}
+
+function _openDeliveryTimeStep(triggerBtnId, timeHiddenId, dateIso) {
+    const btn = document.getElementById(triggerBtnId);
+    const span = btn.querySelector('span');
+    const hidden = document.getElementById(timeHiddenId);
+
+    let h, m;
+    if (hidden.value && /^\d{1,2}:\d{2}$/.test(hidden.value)) {
+        [h, m] = hidden.value.split(':').map(v => parseInt(v, 10));
+    } else {
+        const now = new Date();
+        h = now.getHours();
+        m = now.getMinutes();
+    }
+
+    const overlay = document.getElementById('wpTimeOverlay');
+    overlay.classList.add('active');
+    wpLockBody();
+
+    const hourItems = Array.from({ length: 24 }, (_, i) => ({ label: String(i).padStart(2, '0'), value: i }));
+    const minItems = Array.from({ length: 60 }, (_, i) => ({ label: String(i).padStart(2, '0'), value: i }));
+
+    const state = { hourIdx: h, minIdx: m };
+    function updateDisplay() {
+        const hh = String(hourItems[state.hourIdx].value).padStart(2, '0');
+        const mm = String(minItems[state.minIdx].value).padStart(2, '0');
+        document.getElementById('wpTimeDisplay').textContent = `${hh}:${mm}`;
+    }
+    const hourCol = wpBuildColumn('wpHourScroll', hourItems, h, (idx) => { state.hourIdx = idx; updateDisplay(); });
+    const minCol = wpBuildColumn('wpMinScroll', minItems, m, (idx) => { state.minIdx = idx; updateDisplay(); });
+    updateDisplay();
+
+    document.querySelectorAll('#wpTimeOverlay .wp-quick-btn').forEach(qbtn => {
+        qbtn.onclick = () => {
+            const now2 = new Date();
+            now2.setMinutes(now2.getMinutes() + parseInt(qbtn.dataset.mins, 10));
+            hourCol.setIndex(now2.getHours());
+            minCol.setIndex(now2.getMinutes());
+        };
+    });
+
+    document.getElementById('wpTimeSetBtn').onclick = () => {
+        const hh = String(hourItems[hourCol.index].value).padStart(2, '0');
+        const mm = String(minItems[minCol.index].value).padStart(2, '0');
+        hidden.value = `${hh}:${mm}`;
+        span.textContent = `${wpShortDayLabel(dateIso)} · ${hh}:${mm}`;
+        btn.classList.remove('wp-empty');
+        closeWheelOverlay('wpTimeOverlay');
+    };
+    document.getElementById('wpTimeCancelBtn').onclick = () => closeWheelOverlay('wpTimeOverlay');
+}
+
+function wpMonthLabel(offsetMonths) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + offsetMonths);
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+function wpMonthValue(offsetMonths) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + offsetMonths);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function openMonthWheelPicker(triggerBtnIdOrCfg, hiddenInputId) {
+    let cfg;
+    if (typeof triggerBtnIdOrCfg === 'object') {
+        cfg = triggerBtnIdOrCfg;
+    } else {
+        const btn = document.getElementById(triggerBtnIdOrCfg);
+        const span = btn.querySelector('span');
+        const hidden = document.getElementById(hiddenInputId);
+        cfg = {
+            initialValue: hidden.value,
+            onConfirm: (value, label) => {
+                hidden.value = value;
+                span.textContent = label;
+                btn.classList.remove('wp-empty');
+            }
+        };
+    }
+
+    if (cfg.title) {
+        document.getElementById('wpMonthTitle').textContent = cfg.title;
+    }
+
+    const RANGE_BACK = 36, RANGE_FWD = 2;
+    const monthItems = [];
+    for (let o = -RANGE_BACK; o <= RANGE_FWD; o++) {
+        monthItems.push({ label: wpMonthLabel(o), value: wpMonthValue(o) });
+    }
+
+    let initialIndex = RANGE_BACK;
+    if (cfg.initialValue) {
+        const idx = monthItems.findIndex(it => it.value === cfg.initialValue);
+        if (idx >= 0) initialIndex = idx;
+    }
+
+    const overlay = document.getElementById('wpMonthOverlay');
+    overlay.classList.add('active');
+    wpLockBody();
+
+    const state = { idx: initialIndex };
+    function updateDisplay() {
+        document.getElementById('wpMonthDisplay').textContent = monthItems[state.idx].label;
+    }
+    const monthCol = wpBuildColumn('wpMonthScroll', monthItems, initialIndex, (idx) => { state.idx = idx; updateDisplay(); });
+    updateDisplay();
+
+    document.querySelectorAll('#wpMonthOverlay .wp-quick-btn').forEach(qbtn => {
+        qbtn.onclick = () => monthCol.setIndex(RANGE_BACK + parseInt(qbtn.dataset.offset, 10));
+    });
+
+    document.getElementById('wpMonthSetBtn').onclick = () => {
+        const chosen = monthItems[monthCol.index];
+        closeWheelOverlay('wpMonthOverlay');
+        cfg.onConfirm(chosen.value, chosen.label);
+    };
+    document.getElementById('wpMonthCancelBtn').onclick = () => closeWheelOverlay('wpMonthOverlay');
+}
+
+function openYearListPicker(triggerBtnIdOrCfg, hiddenInputId, years) {
+    let cfg;
+    if (typeof triggerBtnIdOrCfg === 'object') {
+        cfg = triggerBtnIdOrCfg;
+    } else {
+        const btn = document.getElementById(triggerBtnIdOrCfg);
+        const span = btn.querySelector('span');
+        const hidden = document.getElementById(hiddenInputId);
+        cfg = {
+            years: years,
+            initialValue: hidden.value,
+            onConfirm: (value) => {
+                hidden.value = value;
+                span.textContent = value;
+                btn.classList.remove('wp-empty');
+            }
+        };
+    }
+
+    if (cfg.title) {
+        document.getElementById('wpYearTitle').textContent = cfg.title;
+    }
+
+    const listEl = document.getElementById('wpYearList');
+    listEl.innerHTML = '';
+    (cfg.years || []).forEach((yr) => {
+        const item = document.createElement('div');
+        item.className = 'wp-source-item' + (String(cfg.initialValue) === String(yr) ? ' wp-source-selected' : '');
+        item.innerHTML = `<span>${yr}</span><span class="wp-source-check">✓</span>`;
+        item.addEventListener('click', () => {
+            closeWheelOverlay('wpYearOverlay');
+            cfg.onConfirm(String(yr));
+        });
+        listEl.appendChild(item);
+    });
+
+    document.getElementById('wpYearOverlay').classList.add('active');
+    wpLockBody();
+    document.getElementById('wpYearCancelBtn').onclick = () => closeWheelOverlay('wpYearOverlay');
+}
+
+async function fetchOrdersForExport(params) {
+    const url = '/api/export_orders?' + new URLSearchParams(params).toString();
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('Failed to load export data (HTTP ' + res.status + ')');
+    return res.json();
+}
+
+async function renderOrderCardsPDF(opts) {
+    const { ordersByDay, filename, showPayment, emptyMessage, onProgress } = opts;
+    if (typeof window.jspdf === 'undefined') {
+        alert('PDF 组件加载失败，请检查网络连接后重试。\n(PDF library failed to load — check your network connection and try again.)');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const pageW = 210, pageH = 297, margin = 10, gap = 5;
+    const usableW = pageW - margin * 2;
+    const usableH = pageH - margin * 2;
+    const columns = 2;
+    const cardW = (usableW - gap * (columns - 1)) / columns;
+
+    const allTextParts = [];
+    (ordersByDay || []).forEach(g => (g.orders || []).forEach(o => {
+        allTextParts.push(o.customer, o.address, o.source, o.wrapped_by, o.payment_date);
+        (o.items || []).forEach(it => allTextParts.push(it.item_name, it.remarks));
+    }));
+    const T = await wpPrepareUnicodeText(pdf, allTextParts);
+
+    function textLines(text, maxWidth, size) {
+        return T.lines(text, maxWidth, size);
+    }
+
+    function itemBlockHeight(item, metaW) {
+        const nameLines = textLines(item.item_name || 'Bouquet', metaW, 9.5);
+        const remarkLines = (item.remarks && item.remarks !== '-') ? textLines('Note: ' + item.remarks, metaW, 8) : [];
+        return 3 + nameLines.length * 4.4 + remarkLines.length * 3.8 + 3;
+    }
+
+    function measureCard(order) {
+        const metaW = cardW - 8;
+        let h = 6 + 5 + 5 + 4 + 3;
+        (order.items || []).forEach(item => { h += itemBlockHeight(item, metaW); });
+        const addrLines = textLines(order.address || '-', cardW - 8, 7.5);
+        h += 4 + 4 + addrLines.length * 3.4;
+        return h + 4;
+    }
+
+    function drawCard(x, y, w, order) {
+        const startY = y;
+        let cy = y + 6;
+
+        pdf.setTextColor(168, 162, 158);
+        pdf.setFontSize(8);
+        pdf.text(String(order.date || ''), x + 4, cy);
+
+        if (showPayment) {
+            pdf.setFontSize(11);
+            pdf.setTextColor(28, 25, 23);
+            pdf.setFont(undefined, 'bold');
+            pdf.text(`${Number(order.total_price || 0).toLocaleString()} MMK`, x + w - 4, y + 6, { align: 'right' });
+            pdf.setFont(undefined, 'normal');
+            pdf.setFontSize(7.5);
+            if (order.is_paid) { pdf.setTextColor(4, 120, 87); } else { pdf.setTextColor(180, 83, 9); }
+            const payLabel = order.is_paid ? ('Paid' + (order.payment_date ? ' · ' + order.payment_date : '')) : 'Unpaid';
+            pdf.text(payLabel, x + w - 4, y + 10, { align: 'right' });
+        }
+        cy += 5;
+
+        pdf.setTextColor(28, 25, 23);
+        T.text(String(order.customer || ''), x + 4, cy, { fontSize: 12, style: 'bold' });
+        cy += 5;
+
+        pdf.setTextColor(120, 113, 108);
+        T.text(`Source: ${order.source || '-'}`, x + 4, cy, { fontSize: 8.5 });
+        cy += 4;
+
+        pdf.setDrawColor(240, 239, 237);
+        pdf.line(x + 4, cy, x + w - 4, cy);
+        cy += 3;
+
+        const metaW = w - 8;
+        (order.items || []).forEach((item) => {
+            let my = cy + 3;
+            pdf.setTextColor(28, 25, 23);
+            const nameLines = textLines(item.item_name || 'Bouquet', metaW, 9.5);
+            T.drawLines(nameLines, x + 4, my, { fontSize: 9.5, lineHeight: 4.4, style: 'bold' });
+            my += nameLines.length * 4.4;
+            if (item.remarks && item.remarks !== '-') {
+                pdf.setTextColor(190, 18, 60);
+                const l = textLines('Note: ' + item.remarks, metaW, 8);
+                T.drawLines(l, x + 4, my, { fontSize: 8, lineHeight: 3.8 });
+                my += l.length * 3.8;
+            }
+            cy = my + 3;
+        });
+
+        pdf.setDrawColor(240, 239, 237);
+        pdf.line(x + 4, cy, x + w - 4, cy);
+        cy += 4;
+
+        pdf.setTextColor(68, 64, 60);
+        T.text(`Time: ${order.time || '-'}`, x + 4, cy, { fontSize: 8 });
+        cy += 4;
+        const addrLines = textLines(order.address || '-', w - 8, 7.5);
+        pdf.setTextColor(120, 113, 108);
+        T.drawLines(addrLines, x + 4, cy, { fontSize: 7.5, lineHeight: 3.4 });
+        cy += addrLines.length * 3.4 + 4;
+
+        pdf.setDrawColor(225, 222, 219);
+        pdf.roundedRect(x, startY, w, cy - startY, 2, 2, 'S');
+    }
+
+    let curY = margin;
+    let anyCard = false;
+
+    (ordersByDay || []).forEach((group) => {
+        const orders = group.orders || [];
+        const headerH = 8;
+
+        const firstRow = orders.slice(0, columns);
+        const firstRowH = firstRow.length ? Math.max(...firstRow.map(measureCard)) : 0;
+        const neededH = headerH + 3 + (orders.length ? firstRowH : 0);
+
+        if (curY > margin && curY + neededH > margin + usableH) {
+            pdf.addPage();
+            curY = margin;
+        }
+
+        pdf.setFillColor(171, 171, 169);
+        pdf.roundedRect(margin, curY, usableW, headerH, 1.5, 1.5, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(9.5);
+        pdf.setFont(undefined, 'bold');
+        pdf.text(String(group.date_display || group.date || ''), margin + 4, curY + 5.5);
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(8);
+        const meta = showPayment
+            ? `${group.order_count} orders · ${Number(group.day_total || 0).toLocaleString()} MMK`
+            : `${group.order_count} orders`;
+        pdf.text(meta, margin + usableW - 4, curY + 5.5, { align: 'right' });
+        curY += headerH + 3;
+
+        for (let i = 0; i < orders.length; i += columns) {
+            anyCard = true;
+            const rowOrders = orders.slice(i, i + columns);
+            const rowH = Math.max(...rowOrders.map(measureCard));
+
+            if (curY + rowH > margin + usableH) {
+                pdf.addPage();
+                curY = margin;
+            }
+
+            rowOrders.forEach((order, idx) => {
+                const x = margin + idx * (cardW + gap);
+                drawCard(x, curY, cardW, order);
+            });
+
+            curY += rowH + gap;
+        }
+
+        curY += 4;
+    });
+
+    if (!anyCard) {
+        pdf.setFontSize(12);
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(emptyMessage || 'No records found for the selected period.', margin, margin + 6);
+    }
+
+    pdf.save(filename);
+}
+
+function _wpCaptureChartHiRes(chart, targetDPR = 3) {
+    const originalDPR = chart.options.devicePixelRatio || window.devicePixelRatio || 1;
+    try {
+        chart.options.devicePixelRatio = targetDPR;
+        chart.resize();
+        return chart.canvas.toDataURL('image/png', 1.0);
+    } finally {
+        chart.options.devicePixelRatio = originalDPR;
+        chart.resize();
+    }
+}
+
+async function renderMonthlyReportPDF(opts) {
+    if (typeof window.jspdf === 'undefined') {
+        alert('PDF 组件加载失败，请检查网络连接后重试。\n(PDF library failed to load — check your network connection and try again.)');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = 210, pageH = 297, margin = 12, usableW = pageW - margin * 2;
+
+    const textParts = [
+        opts.periodLabel,
+        ...(opts.channels || []).map(c => c.name),
+        ...(opts.topItems || []).flatMap(i => [i.name]),
+        ...(opts.topCustomers || []).flatMap(c => [c.name, c.source])
+    ];
+    const T = await wpPrepareUnicodeText(pdf, textParts);
+
+    function ensureSpace(need, y) {
+        if (y + need > pageH - margin) { pdf.addPage(); return margin; }
+        return y;
+    }
+
+    let y = margin;
+
+    pdf.setTextColor(28, 25, 23);
+    pdf.setFontSize(18);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Iris Flower', margin, y + 6);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.setTextColor(120, 113, 108);
+    const reportTitle = opts.viewMode === 'year' ? 'Annual Business Report' : 'Monthly Business Report';
+    pdf.text(`${reportTitle} \u2014 ${opts.periodLabel}`, margin, y + 12);
+    y += 18;
+    pdf.setDrawColor(225, 222, 219);
+    pdf.line(margin, y, pageW - margin, y);
+    y += 8;
+
+    const metrics = [
+        ['Gross Revenue', `${Number(opts.totalRevenue || 0).toLocaleString()} MMK`],
+        ['Completed Orders', `${opts.totalOrders || 0}`],
+        ['Average Ticket', `${Number(opts.avgTicket || 0).toLocaleString()} MMK`],
+        ['Active Customers', `${opts.uniqueCustomers || 0}`],
+        ['Est. Gross Profit', `${Number(opts.estimatedProfit || 0).toLocaleString()} MMK`],
+        ['Profit Margin', `${opts.profitMargin || 0}%`],
+        ['Void Rate', `${opts.refundRate || 0}% (${opts.canceledOrders || 0})`],
+        ['Items / Order', `${opts.itemsPerOrder || 0}`]
+    ];
+    const mCols = 4, mGap = 4;
+    const mW = (usableW - mGap * (mCols - 1)) / mCols, mH = 20;
+    metrics.forEach((m, i) => {
+        const col = i % mCols, row = Math.floor(i / mCols);
+        const mx = margin + col * (mW + mGap), my = y + row * (mH + mGap);
+        pdf.setDrawColor(231, 229, 228);
+        pdf.roundedRect(mx, my, mW, mH, 2, 2, 'S');
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7);
+        pdf.setTextColor(168, 162, 158);
+        pdf.text(m[0].toUpperCase(), mx + 3, my + 6);
+        pdf.setFontSize(10.5);
+        pdf.setTextColor(28, 25, 23);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(m[1], mx + 3, my + 14);
+    });
+    pdf.setFont('helvetica', 'normal');
+    y += Math.ceil(metrics.length / mCols) * (mH + mGap) + 6;
+
+    const chartDefs = [
+        { id: 'revenueTrendChart', label: opts.viewMode === 'year' ? 'Monthly Revenue Trend' : 'Daily Revenue Trend', widthFrac: 1 },
+        { id: 'weekdayChart', label: 'Weekly Sales Pattern', widthFrac: 0.68 },
+        { id: 'customerChart', label: 'Customer Retention', widthFrac: 0.5 }
+    ];
+    for (const def of chartDefs) {
+        const canvas = document.getElementById(def.id);
+        if (!canvas) continue;
+        const chartInstance = window.mcCharts && window.mcCharts[def.id];
+        let imgData;
+        try {
+            imgData = chartInstance ? _wpCaptureChartHiRes(chartInstance) : canvas.toDataURL('image/png', 1.0);
+        } catch (e) { continue; }
+        const chartW = usableW * def.widthFrac;
+        const chartH = chartW * (canvas.height / canvas.width);
+        const chartX = margin + (usableW - chartW) / 2;
+        y = ensureSpace(chartH + 12, y);
+        pdf.setFontSize(10);
+        pdf.setTextColor(28, 25, 23);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(def.label, margin, y + 4);
+        pdf.setFont('helvetica', 'normal');
+        y += 7;
+        try { pdf.addImage(imgData, 'PNG', chartX, y, chartW, chartH, undefined, 'FAST'); } catch (e) {}
+        y += chartH + 8;
+    }
+
+    y = ensureSpace(20, y);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(28, 25, 23);
+    pdf.text('Channel Breakdown', margin, y + 5);
+    pdf.setFont('helvetica', 'normal');
+    y += 10;
+    (opts.channels || []).forEach((c) => {
+        y = ensureSpace(12, y);
+        pdf.setTextColor(68, 64, 60);
+        T.text(c.name, margin, y + 4, { fontSize: 9 });
+        pdf.setTextColor(28, 25, 23);
+        pdf.text(`${Number(c.revenue || 0).toLocaleString()} MMK (${c.percentage || 0}%)`, pageW - margin, y + 4, { align: 'right' });
+        pdf.setFillColor(240, 239, 237);
+        pdf.rect(margin, y + 6, usableW, 2, 'F');
+        pdf.setFillColor(41, 37, 36);
+        pdf.rect(margin, y + 6, usableW * Math.min(100, Math.max(0, c.percentage || 0)) / 100, 2, 'F');
+        y += 12;
+    });
+    if (!(opts.channels || []).length) {
+        pdf.setFontSize(9);
+        pdf.setTextColor(168, 162, 158);
+        pdf.text('No channel data for this period.', margin, y + 4);
+        y += 10;
+    }
+    y += 4;
+
+    pdf.addPage();
+    y = margin;
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(28, 25, 23);
+    pdf.text('Top Selling Items', margin, y + 5);
+    pdf.setFont('helvetica', 'normal');
+    y += 9;
+    const itemCols = [margin, margin + 10, margin + 130, pageW - margin];
+    const itemColGap = 3;
+    pdf.setFontSize(8);
+    pdf.setTextColor(168, 162, 158);
+    pdf.text('#', itemCols[0], y);
+    pdf.text('Item', itemCols[1], y);
+    pdf.text('Sold', itemCols[2], y);
+    pdf.text('Revenue', itemCols[3], y, { align: 'right' });
+    y += 3;
+    pdf.setDrawColor(231, 229, 228);
+    pdf.line(margin, y, pageW - margin, y);
+    y += 5;
+    (opts.topItems || []).forEach((item, i) => {
+        y = ensureSpace(6, y);
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(28, 25, 23);
+        pdf.text(String(i + 1), itemCols[0], y);
+        T.textClipped(item.name, itemCols[1], y, itemCols[2] - itemCols[1] - itemColGap, { fontSize: 8.5 });
+        pdf.setTextColor(28, 25, 23);
+        pdf.text(String(item.count || 0), itemCols[2], y);
+        pdf.text(`${Number(item.revenue || 0).toLocaleString()} MMK`, itemCols[3], y, { align: 'right' });
+        y += 6;
+    });
+    if (!(opts.topItems || []).length) {
+        pdf.setFontSize(9);
+        pdf.setTextColor(168, 162, 158);
+        pdf.text('No item sales for this period.', margin, y);
+        y += 8;
+    }
+    y += 6;
+
+    y = ensureSpace(20, y);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(28, 25, 23);
+    pdf.text('Top Customers', margin, y + 5);
+    pdf.setFont('helvetica', 'normal');
+    y += 9;
+    const custCols = [margin, margin + 10, margin + 90, margin + 148, pageW - margin];
+    const custColGap = 3;
+    pdf.setFontSize(8);
+    pdf.setTextColor(168, 162, 158);
+    pdf.text('#', custCols[0], y);
+    pdf.text('Customer', custCols[1], y);
+    pdf.text('Source', custCols[2], y);
+    pdf.text('Orders', custCols[3], y);
+    pdf.text('Revenue', custCols[4], y, { align: 'right' });
+    y += 3;
+    pdf.line(margin, y, pageW - margin, y);
+    y += 5;
+    (opts.topCustomers || []).forEach((c, i) => {
+        y = ensureSpace(6, y);
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(28, 25, 23);
+        pdf.text(String(i + 1), custCols[0], y);
+        T.textClipped(c.name, custCols[1], y, custCols[2] - custCols[1] - custColGap, { fontSize: 8.5 });
+        pdf.setTextColor(120, 113, 108);
+        T.textClipped(c.source || '-', custCols[2], y, custCols[3] - custCols[2] - custColGap, { fontSize: 8.5 });
+        pdf.setTextColor(28, 25, 23);
+        pdf.text(String(c.orders || 0), custCols[3], y);
+        pdf.text(`${Number(c.revenue || 0).toLocaleString()} MMK`, custCols[4], y, { align: 'right' });
+        y += 6;
+    });
+    if (!(opts.topCustomers || []).length) {
+        pdf.setFontSize(9);
+        pdf.setTextColor(168, 162, 158);
+        pdf.text('No customer data for this period.', margin, y);
+    }
+
+    pdf.save(opts.filename);
+}
+
+function togglePaymentDate(wrapId, hiddenId, triggerBtnId, checkboxId) {
+    const cb = document.getElementById(checkboxId);
+    const wrap = document.getElementById(wrapId);
+    const hidden = document.getElementById(hiddenId);
+    const btn = document.getElementById(triggerBtnId);
+    const span = btn.querySelector('span');
+
+    wrap.classList.toggle('hidden', !cb.checked);
+
+    if (cb.checked && !hidden.value) {
+        hidden.value = wpIsoForOffset(0);
+        span.textContent = wpFormatRelativeDay(0);
+        btn.classList.remove('wp-empty');
+    }
+    if (!cb.checked) {
+        hidden.value = '';
+        span.textContent = '选择付款日期 Select Payment Date';
+        btn.classList.add('wp-empty');
+    }
+}
+
+/* ===== Price Range Slider (dual thumb, 0 - 5,000,000 MMK) =====
+   Generic helper used by the Daily Records filter bar. Renders two
+   overlapping <input type=range> elements sharing one visual track, keeps
+   the min handle from crossing the max handle, and updates a fill bar +
+   label text live. On "commit" (change event) it writes into the two
+   hidden inputs the filter form submits with. */
+function wpInitPriceRangeSlider(cfg) {
+    const { minInputId, maxInputId, hiddenMinId, hiddenMaxId, labelMinId, labelMaxId, fillId, floor, ceil } = cfg;
+    const minInput = document.getElementById(minInputId);
+    const maxInput = document.getElementById(maxInputId);
+    const hiddenMin = document.getElementById(hiddenMinId);
+    const hiddenMax = document.getElementById(hiddenMaxId);
+    const labelMin = document.getElementById(labelMinId);
+    const labelMax = document.getElementById(labelMaxId);
+    const fill = document.getElementById(fillId);
+    if (!minInput || !maxInput) return;
+
+    function fmt(v) {
+        v = parseInt(v, 10) || 0;
+        if (v >= ceil) return `${(ceil / 1000000).toLocaleString()}M+`;
+        return v.toLocaleString();
+    }
+
+    function render() {
+        let vMin = parseInt(minInput.value, 10);
+        let vMax = parseInt(maxInput.value, 10);
+        if (vMin > vMax) { vMin = vMax; minInput.value = vMin; }
+        const pctMin = ((vMin - floor) / (ceil - floor)) * 100;
+        const pctMax = ((vMax - floor) / (ceil - floor)) * 100;
+        if (fill) { fill.style.left = pctMin + '%'; fill.style.width = Math.max(0, pctMax - pctMin) + '%'; }
+        if (labelMin) labelMin.textContent = fmt(vMin) + ' MMK';
+        if (labelMax) labelMax.textContent = fmt(vMax) + ' MMK';
+    }
+
+    minInput.addEventListener('input', render);
+    maxInput.addEventListener('input', render);
+    render();
+
+    return {
+        onCommit(fn) {
+            minInput.addEventListener('change', () => { hiddenMin.value = minInput.value; fn(minInput.value, maxInput.value); });
+            maxInput.addEventListener('change', () => { hiddenMax.value = maxInput.value; fn(minInput.value, maxInput.value); });
+        }
+    };
+}
+</script>
+<body class="bg-[#FCFAF7] text-[#21201F] min-h-screen pb-12">
+
+    {% if request.endpoint != 'login' %}
+    <nav class="bg-white border-b border-stone-200/60 shadow-xs no-print sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between py-3 md:py-0 md:h-24 gap-3">
+
+                <div class="flex items-center gap-10 w-full md:w-auto justify-between md:justify-start">
+                    <div class="flex items-center gap-3">
+                        <img src="/static/logo.jpg" class="h-14 w-14 sm:h-16 sm:w-16 object-contain rounded-md" alt="Iris Flower Logo" onerror="this.src='https://placehold.co/100x100?text=Iris';">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-xl sm:text-2xl tracking-[0.12em] text-stone-950 uppercase font-serif">
+                                Iris Flower
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="hidden sm:block md:hidden text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-sans uppercase tracking-widest">Live</div>
+                </div>
+
+                <div class="flex items-center justify-between w-full md:w-auto border-t border-stone-100 pt-2.5 md:pt-0 md:border-t-0 gap-4">
+                    <div class="flex space-x-1 font-sans text-xs sm:text-sm uppercase tracking-wide overflow-x-auto no-scrollbar max-w-full whitespace-nowrap">
+                        {% if session.get('role') == 'staff' %}
+                        <a href="/staff" class="{% if active_page == 'staff' %}bg-emerald-700 text-white shadow-xs{% else %}text-stone-500 hover:text-stone-900 hover:bg-stone-100{% endif %} px-3.5 py-2 rounded font-medium transition-all">
+                            နေ့စဉ်မှတ်တမ်း (Daily)
+                        </a>
+                        <a href="/logout" class="text-red-600 hover:bg-red-50 px-3.5 py-2 rounded font-medium transition-all">
+                            အကောင့်ထွက်ရန် (Logout)
+                        </a>
+                        {% else %}
+                        <a href="/" class="{% if active_page == 'daily' %}bg-stone-950 text-white shadow-xs{% else %}text-stone-500 hover:text-stone-900 hover:bg-stone-100{% endif %} px-3.5 py-2 rounded font-medium transition-all">
+                            每日记录 (Daily)
+                        </a>
+                        <a href="/monthly" class="{% if active_page == 'monthly' %}bg-stone-950 text-white shadow-xs{% else %}text-stone-500 hover:text-stone-900 hover:bg-stone-100{% endif %} px-3.5 py-2 rounded font-medium transition-all">
+                            月度报表 (Monthly)
+                        </a>
+                        <a href="/logout" class="text-red-600 hover:bg-red-50 px-3.5 py-2 rounded font-medium transition-all">
+                            安全登出 (Logout)
+                        </a>
+                        {% endif %}
+                    </div>
+
+                    <div class="hidden lg:block text-xs text-stone-400 font-sans tracking-widest uppercase">
+                        {% if session.get('role') == 'staff' %}ဝန်ထမ်းစာမျက်နှာ{% else %}System Connected{% endif %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="fixed top-4 right-4 z-[9999] space-y-2 max-w-sm w-full font-sans text-sm" id="flashBanner">
+              {% for category, message in messages %}
+                <div class="flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg border
+                  {% if category == 'error' %}bg-rose-50 border-rose-300 text-rose-800
+                  {% else %}bg-emerald-50 border-emerald-300 text-emerald-800{% endif %}">
+                  <span class="flex-1">{{ message }}</span>
+                  <button onclick="this.parentElement.remove()" class="ml-2 font-bold opacity-60 hover:opacity-100">✕</button>
+                </div>
+              {% endfor %}
+            </div>
+            <script>setTimeout(()=>{const b=document.getElementById('flashBanner');if(b)b.remove();},7000);</script>
+          {% endif %}
+        {% endwith %}
+        {% block content %}
+        {% endblock %}
+    </main>
+
+</body>
+</html>

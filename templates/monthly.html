@@ -1,0 +1,559 @@
+{% extends "base.html" %}
+
+{% block title %}月度业务报表 — Iris Flower{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 font-sans" id="monthlyReportRoot">
+
+    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+        <div class="space-y-1">
+            <h1 class="text-3xl font-semibold tracking-wide text-stone-900 font-serif">
+                {% if view_mode == 'year' %}年度业务报表{% else %}月度业务报表{% endif %}
+            </h1>
+            <p class="text-xs text-stone-400 tracking-wider uppercase">
+                {% if view_mode == 'year' %}Annual Business Overview & Analytics{% else %}Monthly Business Overview & Analytics{% endif %}
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <form method="GET" action="/monthly" id="monthlyFilterForm" class="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl border border-stone-200 shadow-xs">
+                <input type="hidden" name="view" id="viewModeInput" value="{{ view_mode }}">
+
+                <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
+                    <button type="button" onclick="setViewMode('month')"
+                        class="px-3.5 py-2 transition-all view-tab-month {% if view_mode != 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                        月度
+                    </button>
+                    <button type="button" onclick="setViewMode('year')"
+                        class="px-3.5 py-2 transition-all view-tab-year {% if view_mode == 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                        年度
+                    </button>
+                </div>
+
+                <div id="monthPicker" class="{% if view_mode == 'year' %}hidden{% endif %} min-w-[190px]">
+                    <input type="hidden" name="month" id="monthHidden" value="{{ selected_month }}">
+                    <button type="button" id="monthTriggerBtn" class="wp-trigger text-xs p-3" onclick="openMonthWheelPicker('monthTriggerBtn','monthHidden')">
+                        <span>{{ selected_month }}</span>
+                        <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                    </button>
+                </div>
+
+                <div id="yearPicker" class="{% if view_mode != 'year' %}hidden{% endif %} min-w-[150px]">
+                    <input type="hidden" name="year" id="yearHidden" value="{{ selected_year }}">
+                    <button type="button" id="yearTriggerBtn" class="wp-trigger text-xs p-3" onclick="openYearListPicker('yearTriggerBtn','yearHidden', {{ available_years | tojson | safe }})">
+                        <span>{{ selected_year }}</span>
+                        <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+
+                <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-5 rounded-lg transition-all cursor-pointer">
+                    筛选
+                </button>
+            </form>
+
+            <div class="flex gap-2">
+                <a id="csvExportBtn" href="/monthly/export?view={{ view_mode }}&month={{ selected_month }}&year={{ selected_year }}"
+                    class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold tracking-widest uppercase py-2.5 px-4 rounded-lg transition-all shadow-xs border border-stone-300/60 cursor-pointer whitespace-nowrap">
+                    导出 CSV
+                </a>
+                <button type="button" id="monthlyPdfBtn" onclick="downloadMonthlyReportPDF()"
+                    class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-5 rounded-lg transition-all shadow-sm cursor-pointer whitespace-nowrap">
+                    下载 PDF 报表
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-2 relative overflow-hidden transition-all duration-300 hover:shadow-md">
+            <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">总营业额 (GROSS REVENUE)</h3>
+            <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-bold text-stone-950 tracking-tight font-numeric">{{"{:,}".format(total_revenue)}}</span>
+                <span class="text-xs font-semibold text-stone-400">MMK</span>
+            </div>
+            <div>
+                <span class="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-wide">{{ period_label }}</span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-2 relative overflow-hidden transition-all duration-300 hover:shadow-md">
+            <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">已结订单 (COMPLETED VOUCHERS)</h3>
+            <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-bold text-stone-950 tracking-tight font-numeric">{{ total_orders }}</span>
+                <span class="text-xs font-semibold text-stone-500">单</span>
+            </div>
+            <div>
+                <span class="inline-block bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-wide">包含所有成交记录</span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-2 relative overflow-hidden transition-all duration-300 hover:shadow-md">
+            <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">客单价 (AVERAGE TICKET SIZE)</h3>
+            <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-bold text-stone-950 tracking-tight font-numeric">{{"{:,}".format(avg_ticket)}}</span>
+                <span class="text-xs font-semibold text-stone-400">MMK</span>
+            </div>
+            <div>
+                <span class="inline-block bg-stone-50 text-stone-500 text-[10px] font-bold px-2 py-0.5 rounded tracking-wide">单均收入</span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-2 relative overflow-hidden transition-all duration-300 hover:shadow-md">
+            <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">活跃客户数 (ACTIVE CUSTOMERS)</h3>
+            <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-bold text-stone-950 tracking-tight font-numeric">{{ unique_customers }}</span>
+                <span class="text-xs font-semibold text-stone-500">人</span>
+            </div>
+            <div>
+                <span class="inline-block bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded tracking-wide">{% if view_mode == 'year' %}当年{% else %}当月{% endif %}不重复买家</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+        <div class="lg:col-span-4 bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-6">
+            <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">店铺渠道贡献</h2>
+
+            <div class="space-y-4 font-numeric">
+                {% set channel_colors = ['#292524', '#57534e', '#78716c', '#a8a29e', '#059669', '#b45309'] %}
+                {% for channel in channels %}
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs font-medium text-stone-800">
+                        <span>{{ channel.name }}</span>
+                        <span class="whitespace-nowrap">{{"{:,}".format(channel.revenue)}} MMK ({{ channel.percentage }}%)</span>
+                    </div>
+                    <div class="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500" style="width: {{ channel.percentage }}%; background-color: {{ channel_colors[loop.index0 % channel_colors|length] }};"></div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-stone-400 italic py-4">暂无数据</p>
+                {% endfor %}
+            </div>
+
+            <div class="pt-4 border-t border-stone-100 text-[11px] text-stone-400 leading-relaxed">
+                <p>* 数据为当前筛选周期的真实交易总和。若渠道显示为 Other，请检查每日订单中的"订单来源"字段。</p>
+            </div>
+        </div>
+
+        <div class="lg:col-span-8 bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-4">
+            <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">最畅销花束排行 (Top 10 Selling Bouquets)</h2>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                    <thead>
+                        <tr class="text-stone-400 border-b border-stone-100 font-medium">
+                            <th class="py-3 px-2 w-[10%]">排名</th>
+                            <th class="py-3 px-2 w-[50%]">花束名称</th>
+                            <th class="py-3 px-2 w-[18%] text-center whitespace-nowrap">销量</th>
+                            <th class="py-3 px-2 w-[22%] text-right whitespace-nowrap">总销售额</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-stone-50 font-numeric text-stone-800">
+                        {% for item in top_items %}
+                        <tr class="hover:bg-stone-50/50 transition-colors">
+                            <td class="py-4 px-2 font-bold text-stone-950">{{ loop.index }}</td>
+                            <td class="py-4 px-2 text-stone-900 font-medium">{{ item.name }}</td>
+                            <td class="py-4 px-2 text-center text-stone-900 font-semibold whitespace-nowrap">{{ item.count }} 件</td>
+                            <td class="py-4 px-2 text-right font-bold text-stone-950 whitespace-nowrap">{{"{:,}".format(item.revenue)}} MMK</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-12 text-stone-400 italic">该周期暂无花束销量排行统计数据。</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="pt-6 pb-2 border-b border-stone-200/80 mt-12">
+        <h2 class="text-xl font-semibold tracking-wide text-stone-900 font-serif">高级管理财务核心视角</h2>
+        <p class="text-xs text-stone-400 tracking-wider uppercase mt-1">Revenue Trajectory & Customer Analytics</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-stone-950 p-6 rounded-2xl border border-stone-900 shadow-xs flex justify-between items-center text-white relative overflow-hidden">
+            <div class="space-y-1 relative z-10">
+                <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">预估毛利润 (EST. GROSS PROFIT)</h3>
+                <div class="text-2xl font-bold tracking-tight font-numeric">
+                    {{"{:,}".format(estimated_profit | default(0))}} <span class="text-xs text-stone-400 font-normal">MMK</span>
+                </div>
+            </div>
+            <div class="text-right relative z-10">
+                <span class="inline-block bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2.5 py-1 rounded tracking-wide font-sans">
+                    利润率 {{ profit_margin | default(58) }}%
+                </span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs flex justify-between items-center">
+            <div class="space-y-1">
+                <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">非正常成交及空单率 (VOID RATE)</h3>
+                <div class="text-2xl font-bold text-stone-950 tracking-tight font-numeric">
+                    {{ refund_rate | default(0.0) }}<span class="text-xs text-stone-400 font-normal">%</span>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="inline-block bg-rose-50 text-rose-600 text-[10px] font-bold px-2 py-1 rounded tracking-wide font-sans">
+                    {{ canceled_orders | default(0) }} 笔无收入单
+                </span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs flex justify-between items-center">
+            <div class="space-y-1">
+                <h3 class="text-[11px] font-bold tracking-wider text-stone-400 uppercase">平均客单连带率 (BASKET DEPTH)</h3>
+                <div class="text-2xl font-bold text-stone-950 tracking-tight font-numeric">
+                    {{ items_per_order | default(0.0) }}<span class="text-xs text-stone-400 font-normal"> 件/单</span>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="inline-block bg-stone-100 text-stone-600 text-[10px] font-bold px-2 py-1 rounded tracking-wide font-sans">
+                    订单内容深度
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
+
+        <div class="xl:col-span-2 bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">
+                    {% if view_mode == 'year' %}年度月度销售走势 (Monthly Revenue Trend){% else %}当月每日销售走势 (Daily Revenue Trend){% endif %}
+                </h2>
+                <span class="inline-flex items-center px-2 py-0.5 rounded bg-stone-50 border border-stone-200 text-[10px] font-semibold text-stone-500">
+                    {{ period_label }}
+                </span>
+            </div>
+            <div class="relative h-72 w-full">
+                <canvas id="revenueTrendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="xl:col-span-1 bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-6">
+            <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">客群留存及新老占比 (Customer Retention)</h2>
+
+            <div class="relative h-44 w-full flex justify-center">
+                <canvas id="customerChart"></canvas>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-4 border-t border-stone-100 font-numeric">
+                <div class="text-center space-y-1 border-r border-stone-100">
+                    <p class="text-xs text-stone-400 font-medium">首次消费新客</p>
+                    <p class="text-lg font-bold text-stone-900">{{ new_customers | default(0) }} 人</p>
+                </div>
+                <div class="text-center space-y-1">
+                    <p class="text-xs text-stone-400 font-medium">历史高留存老客</p>
+                    <p class="text-lg font-bold text-emerald-700">{{ returning_customers | default(0) }} 人</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">Weekly Sales Pattern</h2>
+                <span class="text-[10px] text-stone-400 uppercase tracking-wider">{{ period_label }}</span>
+            </div>
+            <div class="relative h-72 w-full">
+                <canvas id="weekdayChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-xs space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">Top 10 Customers</h2>
+                <span class="text-[10px] text-stone-400 uppercase tracking-wider">By Revenue</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-stone-400 border-b border-stone-100 text-xs uppercase tracking-wider">
+                            <th class="py-3 pr-2 w-8">#</th>
+                            <th class="py-3">Customer</th>
+                            <th class="py-3">Source</th>
+                            <th class="py-3 text-center">Orders</th>
+                            <th class="py-3 text-right">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody class="font-numeric">
+                        {% for c in top_customers %}
+                        <tr class="border-b border-stone-50 hover:bg-stone-50/60 transition-colors">
+                            <td class="py-3 pr-2 text-stone-400 text-xs font-bold">{{ loop.index }}</td>
+                            <td class="py-3 text-stone-900 font-medium">{{ c.name }}</td>
+                            <td class="py-3">
+                                <span class="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">{{ c.source }}</span>
+                            </td>
+                            <td class="py-3 text-center text-stone-700">{{ c.orders }}</td>
+                            <td class="py-3 text-right font-semibold text-stone-900 whitespace-nowrap">
+                                {{ "{:,}".format(c.revenue) }} MMK
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-10 text-stone-400 italic text-sm">暂无客户数据</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const reportData = {
+    period_label: {{ period_label | tojson | safe }},
+    view_mode: {{ view_mode | tojson | safe }},
+    total_revenue: {{ total_revenue | tojson | safe }},
+    total_orders: {{ total_orders | tojson | safe }},
+    avg_ticket: {{ avg_ticket | tojson | safe }},
+    unique_customers: {{ unique_customers | tojson | safe }},
+    estimated_profit: {{ estimated_profit | default(0) | tojson | safe }},
+    profit_margin: {{ profit_margin | default(58) | tojson | safe }},
+    refund_rate: {{ refund_rate | default(0.0) | tojson | safe }},
+    canceled_orders: {{ canceled_orders | default(0) | tojson | safe }},
+    items_per_order: {{ items_per_order | default(0.0) | tojson | safe }},
+    channels: {{ channels | tojson | safe }},
+    top_items: {{ top_items | tojson | safe }},
+    top_customers: {{ top_customers | tojson | safe }}
+};
+
+function setViewMode(mode) {
+    document.getElementById('viewModeInput').value = mode;
+    document.getElementById('monthPicker').classList.toggle('hidden', mode === 'year');
+    document.getElementById('yearPicker').classList.toggle('hidden', mode !== 'year');
+
+    const tabMonth = document.querySelector('.view-tab-month');
+    const tabYear = document.querySelector('.view-tab-year');
+    if (mode === 'year') {
+        tabMonth.className = 'px-3.5 py-2 transition-all view-tab-month bg-white text-stone-500 hover:bg-stone-50';
+        tabYear.className = 'px-3.5 py-2 transition-all view-tab-year bg-stone-900 text-white';
+    } else {
+        tabMonth.className = 'px-3.5 py-2 transition-all view-tab-month bg-stone-900 text-white';
+        tabYear.className = 'px-3.5 py-2 transition-all view-tab-year bg-white text-stone-500 hover:bg-stone-50';
+    }
+}
+
+function syncExportLinks() {
+    const view = document.getElementById('viewModeInput').value;
+    const month = document.getElementById('monthHidden').value;
+    const year = document.getElementById('yearHidden').value;
+    const csvBtn = document.getElementById('csvExportBtn');
+    csvBtn.href = `/monthly/export?view=${encodeURIComponent(view)}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`;
+}
+document.getElementById('monthHidden').addEventListener('change', syncExportLinks);
+document.getElementById('yearHidden').addEventListener('change', syncExportLinks);
+document.getElementById('csvExportBtn').addEventListener('click', syncExportLinks);
+const _origSetViewMode = setViewMode;
+setViewMode = function(mode) { _origSetViewMode(mode); syncExportLinks(); };
+
+async function downloadMonthlyReportPDF() {
+    const btn = document.getElementById('monthlyPdfBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '生成中…';
+    try {
+        await renderMonthlyReportPDF({
+            periodLabel: reportData.period_label,
+            viewMode: reportData.view_mode,
+            totalRevenue: reportData.total_revenue,
+            totalOrders: reportData.total_orders,
+            avgTicket: reportData.avg_ticket,
+            uniqueCustomers: reportData.unique_customers,
+            estimatedProfit: reportData.estimated_profit,
+            profitMargin: reportData.profit_margin,
+            refundRate: reportData.refund_rate,
+            canceledOrders: reportData.canceled_orders,
+            itemsPerOrder: reportData.items_per_order,
+            channels: reportData.channels,
+            topItems: reportData.top_items,
+            topCustomers: reportData.top_customers,
+            filename: `Iris_Flower_Report_${reportData.period_label}.pdf`
+        });
+    } catch (err) {
+        alert('PDF 导出失败，请重试。\n' + (err.message || ''));
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const palette = {
+        primary: '#292524',
+        secondary: '#57534e',
+        tertiary: '#78716c',
+        accent: '#a8a29e',
+        success: '#059669',
+        warm: '#b45309',
+        rose: '#9f1239',
+        muted: '#d6d3d1',
+        grid: '#f5f5f4',
+        text: '#78716c',
+        series: ['#292524', '#44403c', '#57534e', '#78716c', '#059669', '#0d9488', '#b45309', '#9f1239']
+    };
+
+    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    Chart.defaults.color = palette.text;
+    Chart.defaults.borderColor = palette.muted;
+
+    const trendLabels = {{ trend_labels | tojson | safe }};
+    const trendData = {{ trend_data | tojson | safe }};
+    const customerSplitData = {{ customer_split_data | tojson | safe }};
+    const weekdayLabels = {{ weekday_labels | tojson | safe }};
+    const weekdayData = {{ weekday_data | tojson | safe }};
+    const viewMode = {{ view_mode | tojson | safe }};
+
+    const formatMMK = (value) => value.toLocaleString() + ' MMK';
+
+    const baseOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+            legend: { labels: { usePointStyle: true, padding: 16, boxWidth: 8, font: { size: 11 } } },
+            tooltip: {
+                backgroundColor: '#1c1917',
+                titleColor: '#fafaf9',
+                bodyColor: '#d6d3d1',
+                padding: 12,
+                cornerRadius: 8,
+                displayColors: true,
+                boxPadding: 4
+            }
+        }
+    };
+
+    window.mcCharts = window.mcCharts || {};
+
+    const trendCtx = document.getElementById('revenueTrendChart').getContext('2d');
+    const trendGradient = trendCtx.createLinearGradient(0, 0, 0, 300);
+    trendGradient.addColorStop(0, 'rgba(41, 37, 36, 0.18)');
+    trendGradient.addColorStop(1, 'rgba(41, 37, 36, 0)');
+
+    window.mcCharts.revenueTrendChart = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: trendLabels,
+            datasets: [{
+                label: viewMode === 'year' ? 'Monthly Revenue' : 'Daily Revenue',
+                data: trendData,
+                borderColor: palette.primary,
+                backgroundColor: trendGradient,
+                fill: true,
+                borderWidth: 2.5,
+                tension: 0.35,
+                pointRadius: viewMode === 'year' ? 5 : 3,
+                pointHoverRadius: 7,
+                pointBackgroundColor: '#fafaf9',
+                pointBorderColor: palette.primary,
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            ...baseOptions,
+            plugins: {
+                ...baseOptions.plugins,
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => formatMMK(ctx.parsed.y) } }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: palette.grid, drawBorder: false },
+                    ticks: { callback: (v) => v.toLocaleString(), padding: 8 }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: viewMode === 'year' ? 12 : 15 }
+                }
+            }
+        }
+    });
+
+    window.mcCharts.customerChart = new Chart(document.getElementById('customerChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['New Customers', 'Returning Customers'],
+            datasets: [{
+                data: customerSplitData,
+                backgroundColor: [palette.tertiary, palette.success],
+                borderWidth: 3,
+                borderColor: '#fff',
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            ...baseOptions,
+            cutout: '72%',
+            plugins: {
+                ...baseOptions.plugins,
+                legend: { position: 'bottom', labels: { padding: 12, font: { size: 10 } } }
+            }
+        }
+    });
+
+    const maxWeekday = Math.max(...weekdayData, 1);
+    const barColors = weekdayData.map((val, i) => {
+        const intensity = val / maxWeekday;
+        if (intensity > 0.7) return palette.primary;
+        if (intensity > 0.4) return palette.secondary;
+        if (intensity > 0.15) return palette.tertiary;
+        return palette.accent;
+    });
+
+    window.mcCharts.weekdayChart = new Chart(document.getElementById('weekdayChart'), {
+        type: 'bar',
+        data: {
+            labels: weekdayLabels,
+            datasets: [{
+                label: 'Revenue',
+                data: weekdayData,
+                backgroundColor: barColors,
+                borderRadius: 6,
+                borderSkipped: false,
+                barPercentage: 0.65,
+                categoryPercentage: 0.8
+            }]
+        },
+        options: {
+            ...baseOptions,
+            plugins: {
+                ...baseOptions.plugins,
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => formatMMK(ctx.parsed.y) } }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: palette.grid, drawBorder: false },
+                    ticks: { callback: (v) => v.toLocaleString(), padding: 8 }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { weight: '500' } }
+                }
+            }
+        }
+    });
+
+});
+</script>
+{% endblock %}

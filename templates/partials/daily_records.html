@@ -1,0 +1,505 @@
+{# Shared daily records: filter bar + orders grouped by day (newest first), card-grid layout. #}
+
+<div class="p-4 sm:p-5 bg-stone-50/80 border-b border-stone-200/60 no-print font-sans relative z-10">
+    <form method="GET" action="{{ filter_action }}" id="dailyFilterForm" class="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="view" id="dailyViewModeInput" value="{{ view_mode }}">
+
+        {% if not readonly %}
+        <div id="dailySourceFilterWrap" class="min-w-[190px]">
+            <input type="hidden" name="source" id="filterSourceHidden" value="{{ selected_source or '' }}">
+            <button type="button" id="filterSourceTriggerBtn" class="wp-trigger text-xs p-3 {% if not selected_source %}wp-empty{% endif %}" onclick="openSourceFilterPicker()">
+                <span>{{ selected_source if selected_source else '全部来源 (All Sources)' }}</span>
+                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+        </div>
+        {% endif %}
+
+        <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
+            <button type="button" onclick="setDailyViewMode('day')"
+                class="px-3.5 py-2.5 transition-all daily-view-tab-day {% if view_mode == 'day' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                {% if readonly %}ရက်{% else %}日{% endif %}
+            </button>
+            <button type="button" onclick="setDailyViewMode('month')"
+                class="px-3.5 py-2.5 transition-all daily-view-tab-month {% if view_mode == 'month' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                {% if readonly %}လ{% else %}月{% endif %}
+            </button>
+            <button type="button" onclick="setDailyViewMode('year')"
+                class="px-3.5 py-2.5 transition-all daily-view-tab-year {% if view_mode == 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                {% if readonly %}နှစ်{% else %}年{% endif %}
+            </button>
+        </div>
+
+        <div id="dailyDayPickerWrap" class="{% if view_mode != 'day' %}hidden{% endif %} min-w-[190px]">
+            <input type="hidden" name="day" id="filterDayHidden" value="{{ selected_day or '' }}">
+            <button type="button" id="filterDayTriggerBtn" class="wp-trigger text-xs p-3" onclick="openFilterDayPicker()">
+                <span>{{ selected_day }}</span>
+                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            </button>
+        </div>
+
+        <div id="dailyMonthPickerWrap" class="{% if view_mode != 'month' %}hidden{% endif %} min-w-[190px]">
+            <input type="hidden" name="month" id="filterMonthHidden" value="{{ selected_month }}">
+            <button type="button" id="filterMonthTriggerBtn" class="wp-trigger text-xs p-3" onclick="openMonthWheelPicker('filterMonthTriggerBtn','filterMonthHidden')">
+                <span>{{ selected_month }}</span>
+                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            </button>
+        </div>
+
+        <div id="dailyYearPickerWrap" class="{% if view_mode != 'year' %}hidden{% endif %} min-w-[150px]">
+            <input type="hidden" name="year" id="filterYearHidden" value="{{ selected_year }}">
+            <button type="button" id="filterYearTriggerBtn" class="wp-trigger text-xs p-3" onclick="openYearListPicker('filterYearTriggerBtn','filterYearHidden', {{ available_years | tojson | safe }})">
+                <span>{{ selected_year }}</span>
+                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+        </div>
+
+        {% if not readonly %}
+        <div class="pr-wrap">
+            <div class="pr-labels">
+                <span id="prLabelMin">{{ "{:,}".format(price_min) }} MMK</span>
+                <span class="text-stone-400 font-normal normal-case">价格区间 Price Range</span>
+                <span id="prLabelMax">{{ "{:,}".format(price_max) }}{% if price_max >= price_filter_max %}+{% endif %} MMK</span>
+            </div>
+            <div class="pr-slider">
+                <div class="pr-track"></div>
+                <div class="pr-track-fill" id="prFill"></div>
+                <input type="range" id="prMinRange" min="{{ price_filter_min }}" max="{{ price_filter_max }}" step="10000" value="{{ price_min }}">
+                <input type="range" id="prMaxRange" min="{{ price_filter_min }}" max="{{ price_filter_max }}" step="10000" value="{{ price_max }}">
+            </div>
+            <input type="hidden" name="price_min" id="prHiddenMin" value="{{ price_min if price_min > price_filter_min else '' }}">
+            <input type="hidden" name="price_max" id="prHiddenMax" value="{{ price_max if price_max < price_filter_max else '' }}">
+        </div>
+        {% endif %}
+
+        <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-5 rounded-lg transition-all cursor-pointer h-[38px]">
+            {% if readonly %}စစ်ထုတ်{% else %}筛选{% endif %}
+        </button>
+    </form>
+
+    {% if not readonly %}
+    <div class="mt-3 pt-3 border-t border-stone-200/60 space-y-3">
+        <div class="relative w-full max-w-full">
+            <label for="dailyCustomerSearch" class="sr-only">Search customer name</label>
+            <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path stroke-linecap="round" d="m20 20-4-4"></path>
+            </svg>
+            <input
+                type="search"
+                id="dailyCustomerSearch"
+                autocomplete="off"
+                placeholder="Search customer name..."
+                class="w-full h-10 pl-10 pr-10 rounded-xl border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 shadow-sm outline-none transition-all focus:border-stone-400 focus:ring-2 focus:ring-stone-900/5"
+            >
+            <button
+                type="button"
+                id="clearDailyCustomerSearch"
+                aria-label="Clear customer search"
+                class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 items-center justify-center rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+            >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Payment:</span>
+            <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
+                <button type="button" id="paidFilterAllBtn" onclick="setDailyPaidFilter('all')"
+                    class="px-3 py-1.5 transition-all daily-paid-tab-all bg-stone-900 text-white">
+                    All
+                </button>
+                <button type="button" id="paidFilterPaidBtn" onclick="setDailyPaidFilter('paid')"
+                    class="px-3 py-1.5 transition-all daily-paid-tab-paid bg-white text-stone-500 hover:bg-stone-50">
+                    ✅ Paid
+                </button>
+                <button type="button" id="paidFilterUnpaidBtn" onclick="setDailyPaidFilter('unpaid')"
+                    class="px-3 py-1.5 transition-all daily-paid-tab-unpaid bg-white text-stone-500 hover:bg-stone-50">
+                    ⏳ Unpaid
+                </button>
+            </div>
+        </div>
+
+        <div id="dailySearchStatus" class="hidden text-xs text-stone-500"></div>
+    </div>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-4 mt-4 pt-4 border-t border-stone-200/60 text-xs font-numeric text-stone-600">
+        <span><strong class="text-stone-900">{{ total_orders }}</strong> {% if readonly %}အော်ဒါ{% else %}笔订单{% endif %}</span>
+        {% if show_payment %}
+        <span><strong class="text-stone-900">{{ "{:,}".format(total_revenue) }}</strong> {% if readonly %}MMK စုစုပေါင်း{% else %}MMK 合计{% endif %}</span>
+        {% endif %}
+        <span><strong class="text-stone-900">{{ orders_by_day|length }}</strong> {% if readonly %}ရက်{% else %}天{% endif %}</span>
+        {% if not readonly and selected_source %}
+        <span>来源筛选: <strong class="text-stone-900">{{ selected_source }}</strong></span>
+        {% endif %}
+    </div>
+</div>
+
+<div id="ordersRoot" class="p-3 sm:p-5">
+    {% for day_group in orders_by_day %}
+    <div class="day-group mb-6 last:mb-0">
+        <div class="day-separator">
+            <span class="day-separator-date">{{ day_group.date_display }}</span>
+            <span class="day-separator-meta">{{ day_group.order_count }} {% if readonly %}အော်ဒါ{% else %}单{% endif %}{% if show_payment %} · {{ "{:,}".format(day_group.day_total) }} MMK{% endif %}</span>
+        </div>
+
+        <div class="orders-grid">
+            {% for order in day_group.orders %}
+            <div class="order-card"
+                id="order-card-{{ order.id }}"
+                data-date="{{ order.date }}"
+                data-customer="{{ order.customer }}"
+                data-source="{{ order.source }}"
+                data-time="{{ order.time }}"
+                data-address="{{ order.address }}"
+                data-total="{{ order.total_price }}"
+                data-wrapped-by="{{ order.wrapped_by }}"
+                data-paid="{{ 'true' if order.is_paid else 'false' }}">
+
+                <div class="oc-header">
+                    <div class="oc-header-main">
+                        <div class="oc-date">{{ order.date }}</div>
+                        <div class="oc-customer">{{ order.customer }}</div>
+                        <div class="oc-source">{% if readonly %}Source: {{ order.source }}{% else %}来源: {{ order.source }}{% endif %}</div>
+                    </div>
+                    <div class="oc-total-wrap">
+                        {# ---- Price only ever appears here in the header, never per line-item ---- #}
+                        <div class="oc-total">{{ "{:,}".format(order.total_price) }} MMK</div>
+                      {% if show_payment %}
+                        <label class="oc-payment-toggle no-print {% if order.is_paid %}is-paid{% endif %}">
+                            <input type="checkbox"
+                                class="oc-payment-checkbox"
+                                {% if order.is_paid %}checked{% endif %}
+                                data-order-id="{{ order.id }}"
+                                data-payment-date="{{ order.payment_date or '' }}"
+                                onchange="handlePaymentCheckboxChange(this)">
+                            <span class="oc-payment-toggle-label">
+                                {% if order.is_paid %}已付款{% if order.payment_date %} · {{ order.payment_date }}{% endif %}{% else %}标记已付款{% endif %}
+                            </span>
+                        </label>
+                        <div class="oc-payment-badge print-only {{ 'oc-paid' if order.is_paid else 'oc-unpaid' }}">
+                            {{ '✅ 已付款' if order.is_paid else '⏳ 未付款' }}{% if order.is_paid and order.payment_date %} · {{ order.payment_date }}{% endif %}
+                        </div>
+                        {% else %}
+                        {% if order.is_paid %}
+                        <div class="oc-payment-badge oc-paid">✅ {% if readonly %}ပေးချေပြီး{% else %}已付款{% endif %}{% if order.payment_date %} · {{ order.payment_date }}{% endif %}</div>
+                        {% else %}
+                        <div class="oc-payment-badge oc-unpaid">⏳ {% if readonly %}မပေးရသေး{% else %}未付款{% endif %}</div>
+                        {% endif %}
+                        {% endif %}
+                  </div>
+                </div>
+
+                <div class="oc-items">
+                    {% for item in order.items %}
+                    <div class="oc-item"
+                        data-item-name="{{ item.item_name }}"
+                        data-price="{{ item.price }}"
+                        data-remarks="{{ item.remarks }}">
+                        <div class="oc-item-meta">
+                            <div class="oc-item-name">💐 {{ item.item_name }}</div>
+                            {% if item.remarks and item.remarks != '-' and item.remarks != '' %}
+                            <div class="oc-item-remarks">{% if readonly %}မှတ်ချက်: {{ item.remarks }}{% else %}备注: {{ item.remarks }}{% endif %}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="oc-footer">
+                    <div class="oc-footer-text">
+                        <span class="oc-time">{% if readonly %}အချိန်: {{ order.time }}{% else %}时间: {{ order.time }}{% endif %}</span>
+                        <span class="oc-address">{{ order.address }}</span>
+                        {% if order.wrapped_by and order.wrapped_by != '' %}
+                        <span class="oc-wrapped-by">🎀 {% if readonly %}ပန်းစည်းစည်းသူ: {{ order.wrapped_by }}{% else %}包花员工: {{ order.wrapped_by }}{% endif %}</span>
+                        {% endif %}
+                    </div>
+                    <div class="oc-actions no-print">
+                        <button type="button"
+                            onclick='openEditModal(
+                                "{{ order.id }}",
+                                "{{ order.date }}",
+                                {{ order.source|tojson }},
+                                {{ order.customer|tojson }},
+                                {{ order.time|tojson }},
+                                {{ order.address|tojson }},
+                                {{ order.wrapped_by|tojson }},
+                                {{ order.is_paid|tojson }},
+                                {{ order.payment_date|tojson }},
+                                [
+                                    {% for oi in order.items %}
+                                    {
+                                        item_name: {{ oi.item_name|tojson }},
+                                        price: {{ oi.price }},
+                                        remarks: {{ oi.remarks|tojson }}
+                                    }{% if not loop.last %},{% endif %}
+                                    {% endfor %}
+                                ]
+                            )'
+                            class="oc-action-btn oc-action-edit"
+                            title="{% if readonly %}အော်ဒါပြင်ဆင်ရန်{% else %}编辑订单{% endif %}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                            </svg>
+                            <span>{% if readonly %}ပြင်ဆင်{% else %}编辑{% endif %}</span>
+                        </button>
+                        <button type="button"
+                            onclick="openDeleteModal('{{ order.id }}', '{{ order.customer|escape }}', '{{ order.date }}')"
+                            class="oc-action-btn oc-action-delete"
+                            title="{% if readonly %}အော်ဒါဖျက်ရန်{% else %}删除订单{% endif %}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>{% if readonly %}ဖျက်ရန်{% else %}删除{% endif %}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-stone-400 italic text-sm">
+        {% if readonly %}
+        ဤစစ်ထုတ်မှုအတွက် အော်ဒါမှတ်တမ်း မရှိသေးပါ။
+        {% else %}
+        该筛选条件下暂无订单记录。
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hidden = document.getElementById('filterDayHidden');
+    const btn = document.getElementById('filterDayTriggerBtn');
+    if (hidden && hidden.value && btn) {
+        const span = btn.querySelector('span');
+        span.textContent = wpFormatDisplayFromISO(hidden.value);
+        btn.classList.remove('wp-empty');
+    }
+
+    {% if not readonly %}
+    wpInitPriceRangeSlider({
+        minInputId: 'prMinRange', maxInputId: 'prMaxRange',
+        hiddenMinId: 'prHiddenMin', hiddenMaxId: 'prHiddenMax',
+        labelMinId: 'prLabelMin', labelMaxId: 'prLabelMax',
+        fillId: 'prFill',
+        floor: {{ price_filter_min }}, ceil: {{ price_filter_max }}
+    });
+    {% endif %}
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    let anchorId = null, scrollYRaw = null;
+    try {
+        anchorId = sessionStorage.getItem('mc_restore_order_id');
+        scrollYRaw = sessionStorage.getItem('mc_restore_scroll_y');
+        sessionStorage.removeItem('mc_restore_order_id');
+        sessionStorage.removeItem('mc_restore_scroll_y');
+    } catch (e) { /* sessionStorage unavailable — just skip restoring */ }
+
+    if (anchorId) {
+        const el = document.getElementById('order-card-' + anchorId);
+        if (el) {
+            requestAnimationFrame(() => {
+                el.scrollIntoView({ block: 'center' });
+                el.style.transition = 'box-shadow .4s ease';
+                el.style.boxShadow = '0 0 0 3px rgba(5,150,105,.45)';
+                setTimeout(() => { el.style.boxShadow = ''; }, 1200);
+            });
+            return;
+        }
+    }
+    if (scrollYRaw) {
+        window.scrollTo(0, parseInt(scrollYRaw, 10) || 0);
+    }
+});
+
+function setDailyViewMode(mode) {
+    document.getElementById('dailyViewModeInput').value = mode;
+    document.getElementById('dailyDayPickerWrap').classList.toggle('hidden', mode !== 'day');
+    document.getElementById('dailyMonthPickerWrap').classList.toggle('hidden', mode !== 'month');
+    document.getElementById('dailyYearPickerWrap').classList.toggle('hidden', mode !== 'year');
+
+    const tabs = {
+        day: document.querySelector('.daily-view-tab-day'),
+        month: document.querySelector('.daily-view-tab-month'),
+        year: document.querySelector('.daily-view-tab-year')
+    };
+    Object.keys(tabs).forEach((key) => {
+        const active = key === mode;
+        tabs[key].className = 'px-3.5 py-2.5 transition-all daily-view-tab-' + key + ' ' +
+            (active ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50');
+    });
+}
+
+{% if not readonly %}
+let dailyPaidFilter = 'all';
+
+function setDailyPaidFilter(mode) {
+    dailyPaidFilter = mode;
+    const tabs = {
+        all: document.getElementById('paidFilterAllBtn'),
+        paid: document.getElementById('paidFilterPaidBtn'),
+        unpaid: document.getElementById('paidFilterUnpaidBtn')
+    };
+    Object.keys(tabs).forEach((key) => {
+        const active = key === mode;
+        tabs[key].className = 'px-3 py-1.5 transition-all daily-paid-tab-' + key + ' ' +
+            (active ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50');
+    });
+    if (window.updateDailyOrderFilters) window.updateDailyOrderFilters();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('dailyCustomerSearch');
+    const clearButton = document.getElementById('clearDailyCustomerSearch');
+    const searchStatus = document.getElementById('dailySearchStatus');
+
+    if (!searchInput) return;
+
+    function updateDailyOrderFilters() {
+        const query = searchInput.value.trim().toLowerCase();
+        const dayGroups = document.querySelectorAll('#ordersRoot .day-group');
+        let matchedOrders = 0;
+        let totalOrders = 0;
+
+        dayGroups.forEach(function(dayGroup) {
+            const cards = dayGroup.querySelectorAll('.order-card');
+            let visibleInGroup = 0;
+
+            cards.forEach(function(card) {
+                const customerName = (card.getAttribute('data-customer') || '').trim().toLowerCase();
+                const nameMatches = !query || customerName.includes(query);
+
+                const isPaid = card.getAttribute('data-paid') === 'true';
+                const paidMatches = dailyPaidFilter === 'all'
+                    || (dailyPaidFilter === 'paid' && isPaid)
+                    || (dailyPaidFilter === 'unpaid' && !isPaid);
+
+                const matches = nameMatches && paidMatches;
+
+                card.classList.toggle('hidden', !matches);
+
+                if (matches) {
+                    visibleInGroup++;
+                    matchedOrders++;
+                }
+
+                totalOrders++;
+            });
+
+            dayGroup.classList.toggle('hidden', visibleInGroup === 0);
+        });
+
+        clearButton.classList.toggle('hidden', !query);
+        clearButton.classList.toggle('flex', !!query);
+
+        const filtersActive = !!query || dailyPaidFilter !== 'all';
+        if (filtersActive) {
+            searchStatus.classList.remove('hidden');
+            searchStatus.textContent = matchedOrders === 1
+                ? '1 order found'
+                : `${matchedOrders} orders found`;
+        } else {
+            searchStatus.classList.add('hidden');
+            searchStatus.textContent = '';
+        }
+
+        let noResults = document.getElementById('dailyCustomerSearchNoResults');
+
+        if (filtersActive && matchedOrders === 0 && totalOrders > 0) {
+            if (!noResults) {
+                noResults = document.createElement('div');
+                noResults.id = 'dailyCustomerSearchNoResults';
+                noResults.className = 'text-center py-16 text-stone-400 italic text-sm';
+                noResults.innerHTML = `
+                    <div class="flex justify-center mb-3">
+                        <svg class="w-8 h-8 text-stone-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="11" cy="11" r="7"></circle>
+                            <path stroke-linecap="round" d="m20 20-4-4"></path>
+                        </svg>
+                    </div>
+                    No orders match the current filters.
+                `;
+                document.getElementById('ordersRoot').appendChild(noResults);
+            }
+            noResults.classList.remove('hidden');
+        } else if (noResults) {
+            noResults.classList.add('hidden');
+        }
+    }
+
+    window.updateDailyOrderFilters = updateDailyOrderFilters;
+
+    searchInput.addEventListener('input', updateDailyOrderFilters);
+
+    clearButton.addEventListener('click', function() {
+        searchInput.value = '';
+        searchInput.focus();
+        updateDailyOrderFilters();
+    });
+
+    searchInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && searchInput.value) {
+            searchInput.value = '';
+            updateDailyOrderFilters();
+        }
+    });
+});
+{% endif %}
+
+function handlePaymentCheckboxChange(checkbox) {
+    const orderId = checkbox.getAttribute('data-order-id');
+    const wrapper = checkbox.closest('.oc-payment-toggle');
+    const label = wrapper.querySelector('.oc-payment-toggle-label');
+
+    if (checkbox.checked) {
+        openDateWheelPicker({
+            title: '付款日期选择 (Set Payment Date)',
+            initialValue: checkbox.getAttribute('data-payment-date') || wpIsoForOffset(0),
+            onConfirm: (dateValue) => {
+                submitPaymentUpdate(orderId, true, dateValue, checkbox, wrapper, label);
+            },
+            onCancel: () => {
+                checkbox.checked = false;
+            }
+        });
+    } else {
+        submitPaymentUpdate(orderId, false, '', checkbox, wrapper, label);
+    }
+}
+
+async function submitPaymentUpdate(orderId, isPaid, paymentDate, checkbox, wrapper, label) {
+    checkbox.disabled = true;
+    try {
+        const res = await fetch(`/toggle_payment/${orderId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_paid: isPaid, payment_date: paymentDate })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Update failed');
+
+        checkbox.checked = data.is_paid;
+        checkbox.setAttribute('data-payment-date', data.payment_date || '');
+        wrapper.classList.toggle('is-paid', data.is_paid);
+        label.textContent = data.is_paid
+            ? `已付款${data.payment_date ? ' · ' + data.payment_date : ''}`
+            : '标记已付款';
+
+        const card = checkbox.closest('.order-card');
+        if (card) card.setAttribute('data-paid', data.is_paid ? 'true' : 'false');
+        if (window.updateDailyOrderFilters) window.updateDailyOrderFilters();
+    } catch (err) {
+        checkbox.checked = !isPaid;
+        alert('更新付款状态失败，请重试。\n' + (err.message || ''));
+    } finally {
+        checkbox.disabled = false;
+    }
+}
+</script>

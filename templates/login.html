@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}系统身份验证 — Iris Flower Hub{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12 font-sans bg-gradient-to-br from-[#FCFAF7] via-stone-50 to-stone-100">
+
+    <div class="w-full max-w-md">
+
+        <div class="text-center mb-8">
+            <img src="/static/logo.jpg" class="h-16 w-16 mx-auto object-contain rounded-2xl mb-4 shadow-md ring-1 ring-stone-200/60" alt="Logo" onerror="this.src='https://placehold.co/100x100?text=Iris';">
+            <h1 class="font-serif text-2xl font-bold text-stone-900 tracking-wide">Iris Flower</h1>
+            <p class="text-stone-400 text-xs mt-1 tracking-wider uppercase">Data Management Portal</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-lg ring-1 ring-stone-200/80 overflow-hidden">
+
+            <!-- Portal Tabs -->
+            <div class="grid grid-cols-2 border-b border-stone-100">
+                <button type="button" id="tabManager"
+                    onclick="switchPortal('manager')"
+                    class="portal-tab py-4 text-xs font-semibold tracking-widest uppercase transition-all border-b-2 border-stone-900 text-stone-900 bg-stone-50/60">
+                    管理员登录
+                </button>
+                <button type="button" id="tabStaff"
+                    onclick="switchPortal('staff')"
+                    class="portal-tab py-4 text-xs font-semibold tracking-widest uppercase transition-all border-b-2 border-transparent text-stone-400 hover:text-stone-600 hover:bg-stone-50/40">
+                    ဝန်ထမ်း အကောင့်ဝင်ရန်
+                </button>
+            </div>
+
+            <div class="p-8">
+
+                {% if error %}
+                <div class="mb-5 bg-rose-50 border border-rose-200 text-rose-700 text-xs px-4 py-3 rounded-xl font-medium flex items-start gap-2">
+                    <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <!-- Manager Portal -->
+                <div id="portalManager">
+                    <div class="mb-6">
+                        <h2 class="text-sm font-semibold text-stone-800">Manager Access</h2>
+                        <p class="text-[11px] text-stone-400 mt-1">完整管理权限 · 订单录入 · 报表分析</p>
+                    </div>
+                    <form method="POST" action="/login" class="space-y-4">
+                        <input type="hidden" name="portal" value="manager">
+                        <div>
+                            <label class="block text-stone-500 text-[11px] uppercase tracking-wider font-semibold mb-1.5">用户名</label>
+                            <input type="text" name="username" required autocomplete="username"
+                                placeholder="Iris Flower"
+                                class="w-full bg-stone-50 border border-stone-200 text-stone-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-stone-500 text-[11px] uppercase tracking-wider font-semibold mb-1.5">密码</label>
+                            <input type="password" name="password" required autocomplete="current-password"
+                                placeholder="••••••••••••"
+                                class="w-full bg-stone-50 border border-stone-200 text-stone-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-400 transition-all">
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium py-3 rounded-xl tracking-wide transition-all shadow-sm mt-2">
+                            管理员登录
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Staff Portal -->
+                <div id="portalStaff" class="hidden">
+                    <div class="mb-6">
+                        <h2 class="text-sm font-semibold text-stone-800">Staff Access</h2>
+                        <p class="text-[11px] text-stone-400 mt-1">နေ့စဉ်အော်ဒါမှတ်တမ်း</p>
+                    </div>
+                    <form method="POST" action="/login" class="space-y-4">
+                        <input type="hidden" name="portal" value="staff">
+                        <div>
+                            <label class="block text-stone-500 text-[11px] uppercase tracking-wider font-semibold mb-1.5">အသုံးပြုသူအမည်</label>
+                            <input type="text" name="username" required autocomplete="username"
+                                placeholder="Staff"
+                                class="w-full bg-stone-50 border border-stone-200 text-stone-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-stone-500 text-[11px] uppercase tracking-wider font-semibold mb-1.5">စကားဝှက်</label>
+                            <input type="password" name="password" required autocomplete="current-password"
+                                placeholder="••••••••••••"
+                                class="w-full bg-stone-50 border border-stone-200 text-stone-900 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all">
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium py-3 rounded-xl tracking-wide transition-all shadow-sm mt-2">
+                            ဝန်ထမ်း အကောင့်ဝင်ရန်
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+
+        <p class="text-center mt-6 text-[10px] text-stone-400 uppercase tracking-widest">
+            Protected Data Environment
+        </p>
+    </div>
+</div>
+
+<script>
+function switchPortal(type) {
+    const managerEl = document.getElementById('portalManager');
+    const staffEl = document.getElementById('portalStaff');
+    const tabManager = document.getElementById('tabManager');
+    const tabStaff = document.getElementById('tabStaff');
+
+    if (type === 'staff') {
+        managerEl.classList.add('hidden');
+        staffEl.classList.remove('hidden');
+        tabManager.className = 'portal-tab py-4 text-xs font-semibold tracking-widest uppercase transition-all border-b-2 border-transparent text-stone-400 hover:text-stone-600 hover:bg-stone-50/40';
+        tabStaff.className = 'portal-tab py-4 text-xs font-semibold tracking-widest uppercase transition-all border-b-2 border-emerald-600 text-emerald-800 bg-emerald-50/40';
+    } else {
+        staffEl.classList.add('hidden');
+        managerEl.classList.remove('hidden');
+        tabStaff.className = 'portal-tab py-4 text-xs font-semibold tracking-widest uppercase transition-all border-b-2 border-transparent text-stone-400 hover:text-stone-600 hover:bg-stone-50/40';
+        tabManager.className = 'portal-tab py-4 text-xs font-semibold tracking-widest uppercase transition-all border-b-2 border-stone-900 text-stone-900 bg-stone-50/60';
+    }
+}
+
+{% if portal == 'staff' %}
+document.addEventListener('DOMContentLoaded', () => switchPortal('staff'));
+{% endif %}
+</script>
+{% endblock %}

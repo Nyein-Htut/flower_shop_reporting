@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Archive — Iris Flower{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 font-sans space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold text-stone-900 font-serif">Archive Old Orders</h1>
+        <p class="text-xs text-stone-400 uppercase tracking-wider mt-1">Export and clean up records before a cutoff date</p>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-stone-200 shadow-xs p-6 space-y-4">
+        <form method="GET" action="/admin/archive" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1.5">Cutoff date (before)</label>
+                <input type="date" name="before" value="{{ cutoff }}" class="border border-stone-300 rounded-lg p-2.5 text-sm">
+            </div>
+            <button type="submit" class="bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold uppercase tracking-widest py-2.5 px-5 rounded-lg">
+                Check
+            </button>
+        </form>
+
+        <p class="text-sm text-stone-600">
+            <strong class="text-stone-900">{{ count }}</strong> orders were placed before <strong>{{ cutoff }}</strong>.
+        </p>
+
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-stone-100">
+            <a href="/admin/archive/export?before={{ cutoff }}" class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold uppercase tracking-widest py-2.5 px-5 rounded-lg">
+                Export CSV
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-rose-50 border border-rose-200 rounded-2xl p-6 space-y-3">
+        <h2 class="text-sm font-bold text-rose-800 uppercase tracking-wider">Danger Zone — Permanently Delete</h2>
+        <p class="text-xs text-rose-700">This permanently removes every order before the cutoff date. Export a CSV backup first.</p>
+        <form method="POST" action="/admin/archive/delete" class="flex flex-wrap items-end gap-3" onsubmit="return confirm('This cannot be undone. Continue?');">
+            <input type="hidden" name="before" value="{{ cutoff }}">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-rose-600 mb-1.5">Type DELETE to confirm</label>
+                <input type="text" name="confirm_text" class="border border-rose-300 rounded-lg p-2.5 text-sm">
+            </div>
+            <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold uppercase tracking-widest py-2.5 px-5 rounded-lg">
+                Delete permanently
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

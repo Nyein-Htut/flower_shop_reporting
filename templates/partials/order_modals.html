@@ -1,0 +1,239 @@
+{# Shared edit + delete modals: manager (daily.html). #}
+
+<div id="editOrderModal" class="fixed inset-0 z-50 hidden flex bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
+    <div class="bg-white max-w-lg w-full rounded-2xl border border-stone-200 shadow-xl overflow-hidden transform scale-95 transition-transform duration-200 max-h-[90vh] flex flex-col" id="editModalCard">
+        <div class="flex justify-between items-start px-6 pt-5 pb-4 border-b border-stone-100 bg-stone-50/60 shrink-0">
+            <div>
+                <h3 class="text-base font-semibold text-stone-900 font-sans">修改账单基础数据</h3>
+                <h4 class="text-xs font-bold tracking-wider text-stone-400 font-sans uppercase">Modify Voucher Metrics</h4>
+            </div>
+            <button type="button" onclick="closeEditModal()" class="text-stone-400 hover:text-stone-600 font-bold text-sm">✕</button>
+        </div>
+
+        <form id="editOrderForm" method="POST" class="text-sm font-sans p-6 overflow-y-auto space-y-4">
+
+            <div class="ef-field">
+                <label class="ef-label">📅 送达日期时间 <span class="ef-label-en">Delivery Date &amp; Time</span></label>
+                <input type="hidden" name="date" id="editDateHidden" value="">
+                <input type="hidden" name="time" id="editTimeHidden" value="">
+                <button type="button" id="editTimeTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openDeliveryDateWheelPicker('editTimeTriggerBtn','editDateHidden','editTimeHidden')">
+                    <span>选择送达日期时间</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                </button>
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">🎀 包花员工 <span class="ef-label-en">Wrapped By</span></label>
+                <input type="text" name="wrapped_by" id="editWrappedBy" placeholder="包花的员工姓名" class="ef-input">
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">🏷️ 订单来源 <span class="ef-label-en">Source</span></label>
+                <input type="hidden" name="source" id="editSourceHidden" value="">
+                <button type="button" id="editSourceTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openSourcePicker('editSourceTriggerBtn','editSourceHidden','订单来源选择 (Select Source)')">
+                    <span>选择订单来源</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">👤 客人姓名 <span class="ef-label-en">Customer</span></label>
+                <input type="text" name="customer" id="editCustomer" required class="ef-input">
+            </div>
+
+            <div class="ef-field">
+                <label class="ef-label">📍 送货地址 &amp; 电话 <span class="ef-label-en">Address &amp; Contact</span></label>
+                <input type="text" name="address" id="editAddress" class="ef-input">
+            </div>
+
+            <hr class="border-stone-200">
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <h4 class="font-semibold text-stone-700 text-xs tracking-wider uppercase">💐 花束明细 (Bouquet Items)</h4>
+                    <button type="button" onclick="addEditItemRow()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold px-3 py-1.5 rounded text-xs transition-colors">
+                        ➕ 添加花束
+                    </button>
+                </div>
+
+                <div id="editItemsContainer" class="w-full border border-stone-200/60 rounded-xl p-2.5 bg-stone-50/30 max-h-[420px] overflow-y-auto space-y-3"></div>
+            </div>
+
+            <div class="flex justify-end items-center gap-3 pt-4 border-t border-stone-100 mt-2 sticky bottom-0 bg-white">
+                <button type="button" onclick="closeEditModal()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold py-2.5 px-4 rounded transition-all">
+                    取消
+                </button>
+                <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold py-2.5 px-5 rounded transition-all shadow-sm">
+                    保存修改 (Update)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="deleteConfirmationModal" class="fixed inset-0 z-50 hidden bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
+    <div class="bg-white max-w-md w-full rounded border border-stone-200 shadow-xl overflow-hidden p-6 space-y-6 transform scale-95 transition-transform duration-200" id="modalCard">
+        <div class="flex items-start gap-4">
+            <div class="bg-rose-50 p-2 rounded-full text-rose-600 shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div class="space-y-1">
+                <h3 class="text-base font-semibold text-stone-900 font-sans">确认删除账单记录？</h3>
+                <h4 class="text-xs font-bold tracking-wider text-stone-400 font-sans uppercase">Confirm Voucher Deletion?</h4>
+            </div>
+        </div>
+
+        <div class="bg-stone-50 border border-stone-200/60 rounded p-3.5 text-xs text-stone-600 space-y-1 font-sans">
+            <p>您正在尝试永久删除该笔客户账单。此操作不可逆，云端数据库及关联的商品条目将同步移除。</p>
+            <p class="text-stone-400 italic">You are about to permanently delete this customer voucher. This action cannot be undone.</p>
+            <div class="pt-2 mt-2 border-t border-stone-200/60 font-numeric text-stone-800 flex justify-between">
+                <span>订单目标 (Target): <strong id="modalCustomerName" class="font-semibold text-stone-950"></strong></span>
+                <span id="modalOrderDate" class="text-stone-400"></span>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-end items-center gap-3 pt-2">
+            <button type="button" onclick="closeDeleteModal()" class="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold tracking-wider uppercase py-2.5 px-5 rounded transition-all font-sans order-2 sm:order-1 cursor-pointer">取消 / Cancel</button>
+            <a id="modalDeleteConfirmBtn" href="#" class="w-full sm:w-auto text-center bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold tracking-wider uppercase py-2.5 px-6 rounded transition-all shadow-xs font-sans order-1 sm:order-2 cursor-pointer">确认移除 / Permanently Delete</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const editOverlay = document.getElementById('editOrderModal');
+    const editCard = document.getElementById('editModalCard');
+    let _mcEditingOrderId = null;
+
+    // items: [{item_name, price, remarks}]
+    function openEditModal(orderId, date, source, customer, time, address, wrappedBy, isPaid, paymentDate, items) {
+        _mcEditingOrderId = orderId;
+
+        const container = document.getElementById('editItemsContainer');
+        container.innerHTML = '';
+        items.forEach(item => addEditItemRow(item));
+        document.getElementById('editOrderForm').setAttribute('action', `/edit_order/${orderId}`);
+        document.getElementById('editCustomer').value = customer;
+        document.getElementById('editAddress').value = address;
+        document.getElementById('editWrappedBy').value = wrappedBy || '';
+
+        const editSourceHidden = document.getElementById('editSourceHidden');
+        const editSourceBtn = document.getElementById('editSourceTriggerBtn');
+        const editSourceSpan = editSourceBtn.querySelector('span');
+        editSourceHidden.value = (source && source !== '-') ? source : '';
+        if (editSourceHidden.value) {
+            editSourceSpan.textContent = editSourceHidden.value;
+            editSourceBtn.classList.remove('wp-empty');
+        } else {
+            editSourceSpan.textContent = '选择订单来源';
+            editSourceBtn.classList.add('wp-empty');
+        }
+
+        const editDateHidden = document.getElementById('editDateHidden');
+        const editTimeHidden = document.getElementById('editTimeHidden');
+        const editBtn = document.getElementById('editTimeTriggerBtn');
+        const editSpan = editBtn.querySelector('span');
+
+        editDateHidden.value = date || '';
+        editTimeHidden.value = (time && /^\d{1,2}:\d{2}$/.test(time)) ? time : '';
+
+        if (editDateHidden.value && editTimeHidden.value) {
+            editSpan.textContent = `${wpShortDayLabel(editDateHidden.value)} · ${editTimeHidden.value}`;
+            editBtn.classList.remove('wp-empty');
+        } else if (editDateHidden.value) {
+            editSpan.textContent = `${wpShortDayLabel(editDateHidden.value)} · --:--`;
+            editBtn.classList.remove('wp-empty');
+        } else {
+            editSpan.textContent = '选择送达日期时间';
+            editBtn.classList.add('wp-empty');
+        }
+
+        editOverlay.classList.remove('hidden');
+        editOverlay.classList.add('flex');
+        setTimeout(() => {
+            editCard.classList.remove('scale-95');
+            editCard.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeEditModal() {
+        editCard.classList.remove('scale-100');
+        editCard.classList.add('scale-95');
+        setTimeout(() => {
+            editOverlay.classList.remove('flex');
+            editOverlay.classList.add('hidden');
+        }, 150);
+    }
+
+    document.getElementById('editOrderForm').addEventListener('submit', function() {
+        if (_mcEditingOrderId) {
+            try { sessionStorage.setItem('mc_restore_order_id', String(_mcEditingOrderId)); } catch (e) {}
+        }
+    });
+
+    function addEditItemRow(item = {}) {
+        const container = document.getElementById('editItemsContainer');
+        const row = document.createElement('div');
+        row.className = 'ef-item-card space-y-3';
+        row.innerHTML = `
+            <div class="flex justify-between items-center">
+                <span class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">花束项目</span>
+                <button type="button" onclick="this.closest('.ef-item-card').remove()" class="text-rose-600 hover:text-rose-800 text-lg font-bold leading-none px-1">✕</button>
+            </div>
+
+            <div>
+                <label class="ef-item-label">花束名称 &amp; 详细描述</label>
+                <textarea name="edit_item_name[]" rows="2" class="ef-input">${item.item_name || ''}</textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="ef-item-label">金额</label>
+                    <input type="number" name="edit_price[]" value="${item.price || ''}" class="ef-input">
+                </div>
+                <div>
+                    <label class="ef-item-label">备注</label>
+                    <input type="text" name="edit_remarks[]" value="${item.remarks || ''}" class="ef-input">
+                </div>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    const modalOverlay = document.getElementById('deleteConfirmationModal');
+    const mCard = document.getElementById('modalCard');
+    const mCust = document.getElementById('modalCustomerName');
+    const mDate = document.getElementById('modalOrderDate');
+    const mBtn = document.getElementById('modalDeleteConfirmBtn');
+
+    function openDeleteModal(orderId, customerName, orderDate) {
+        mCust.textContent = customerName;
+        mDate.textContent = orderDate;
+        mBtn.setAttribute('href', `/delete_order/${orderId}`);
+        modalOverlay.classList.remove('hidden');
+        modalOverlay.classList.add('flex');
+        setTimeout(() => {
+            mCard.classList.remove('scale-95');
+            mCard.classList.add('scale-100');
+        }, 10);
+    }
+
+    function closeDeleteModal() {
+        mCard.classList.remove('scale-100');
+        mCard.classList.add('scale-95');
+        setTimeout(() => {
+            modalOverlay.classList.remove('flex');
+            modalOverlay.classList.add('hidden');
+        }, 150);
+    }
+
+    mBtn.addEventListener('click', function() {
+        try { sessionStorage.setItem('mc_restore_scroll_y', String(window.scrollY)); } catch (e) {}
+    });
+
+    window.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) closeDeleteModal();
+        if (e.target === editOverlay && !editOverlay.classList.contains('hidden')) closeEditModal();
+    });
+</script>
