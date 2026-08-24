@@ -1,132 +1,141 @@
 {# Shared daily records: filter bar + orders grouped by day (newest first), card-grid layout. #}
 
-<div class="p-4 sm:p-5 bg-stone-50/80 border-b border-stone-200/60 no-print font-sans relative z-10">
-    <form method="GET" action="{{ filter_action }}" id="dailyFilterForm" class="flex flex-wrap items-end gap-3">
+<div class="p-3 sm:p-4 bg-stone-50/80 border-b border-stone-200/60 no-print font-sans relative z-10">
+    <form method="GET" action="{{ filter_action }}" id="dailyFilterForm" class="space-y-2.5">
         <input type="hidden" name="view" id="dailyViewModeInput" value="{{ view_mode }}">
 
-        {% if not readonly %}
-        <div id="dailySourceFilterWrap" class="min-w-[190px]">
-            <input type="hidden" name="source" id="filterSourceHidden" value="{{ selected_source or '' }}">
-            <button type="button" id="filterSourceTriggerBtn" class="wp-trigger text-xs p-3 {% if not selected_source %}wp-empty{% endif %}" onclick="openSourceFilterPicker()">
-                <span>{{ selected_source if selected_source else '全部来源 (All Sources)' }}</span>
-                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-            </button>
-        </div>
-        {% endif %}
+        <!-- Primary row: always visible — the filters people use every time -->
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider shrink-0">
+                <button type="button" onclick="setDailyViewMode('day')"
+                    class="px-3 py-2.5 transition-all daily-view-tab-day {% if view_mode == 'day' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                    {% if readonly %}ရက်{% else %}日{% endif %}
+                </button>
+                <button type="button" onclick="setDailyViewMode('month')"
+                    class="px-3 py-2.5 transition-all daily-view-tab-month {% if view_mode == 'month' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                    {% if readonly %}လ{% else %}月{% endif %}
+                </button>
+                <button type="button" onclick="setDailyViewMode('year')"
+                    class="px-3 py-2.5 transition-all daily-view-tab-year {% if view_mode == 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                    {% if readonly %}နှစ်{% else %}年{% endif %}
+                </button>
+            </div>
 
-        <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
-            <button type="button" onclick="setDailyViewMode('day')"
-                class="px-3.5 py-2.5 transition-all daily-view-tab-day {% if view_mode == 'day' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
-                {% if readonly %}ရက်{% else %}日{% endif %}
-            </button>
-            <button type="button" onclick="setDailyViewMode('month')"
-                class="px-3.5 py-2.5 transition-all daily-view-tab-month {% if view_mode == 'month' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
-                {% if readonly %}လ{% else %}月{% endif %}
-            </button>
-            <button type="button" onclick="setDailyViewMode('year')"
-                class="px-3.5 py-2.5 transition-all daily-view-tab-year {% if view_mode == 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
-                {% if readonly %}နှစ်{% else %}年{% endif %}
-            </button>
-        </div>
+            <div id="dailyDayPickerWrap" class="{% if view_mode != 'day' %}hidden{% endif %} flex-1 min-w-[130px]">
+                <input type="hidden" name="day" id="filterDayHidden" value="{{ selected_day or '' }}">
+                <button type="button" id="filterDayTriggerBtn" class="wp-trigger text-xs p-2.5 w-full" onclick="openFilterDayPicker()">
+                    <span>{{ selected_day }}</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                </button>
+            </div>
 
-        <div id="dailyDayPickerWrap" class="{% if view_mode != 'day' %}hidden{% endif %} min-w-[190px]">
-            <input type="hidden" name="day" id="filterDayHidden" value="{{ selected_day or '' }}">
-            <button type="button" id="filterDayTriggerBtn" class="wp-trigger text-xs p-3" onclick="openFilterDayPicker()">
-                <span>{{ selected_day }}</span>
-                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-            </button>
-        </div>
+            <div id="dailyMonthPickerWrap" class="{% if view_mode != 'month' %}hidden{% endif %} flex-1 min-w-[130px]">
+                <input type="hidden" name="month" id="filterMonthHidden" value="{{ selected_month }}">
+                <button type="button" id="filterMonthTriggerBtn" class="wp-trigger text-xs p-2.5 w-full" onclick="openMonthWheelPicker('filterMonthTriggerBtn','filterMonthHidden')">
+                    <span>{{ selected_month }}</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                </button>
+            </div>
 
-        <div id="dailyMonthPickerWrap" class="{% if view_mode != 'month' %}hidden{% endif %} min-w-[190px]">
-            <input type="hidden" name="month" id="filterMonthHidden" value="{{ selected_month }}">
-            <button type="button" id="filterMonthTriggerBtn" class="wp-trigger text-xs p-3" onclick="openMonthWheelPicker('filterMonthTriggerBtn','filterMonthHidden')">
-                <span>{{ selected_month }}</span>
-                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-            </button>
-        </div>
+            <div id="dailyYearPickerWrap" class="{% if view_mode != 'year' %}hidden{% endif %} flex-1 min-w-[100px]">
+                <input type="hidden" name="year" id="filterYearHidden" value="{{ selected_year }}">
+                <button type="button" id="filterYearTriggerBtn" class="wp-trigger text-xs p-2.5 w-full" onclick="openYearListPicker('filterYearTriggerBtn','filterYearHidden', {{ available_years | tojson | safe }})">
+                    <span>{{ selected_year }}</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
 
-        <div id="dailyYearPickerWrap" class="{% if view_mode != 'year' %}hidden{% endif %} min-w-[150px]">
-            <input type="hidden" name="year" id="filterYearHidden" value="{{ selected_year }}">
-            <button type="button" id="filterYearTriggerBtn" class="wp-trigger text-xs p-3" onclick="openYearListPicker('filterYearTriggerBtn','filterYearHidden', {{ available_years | tojson | safe }})">
-                <span>{{ selected_year }}</span>
-                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-4 rounded-lg transition-all cursor-pointer shrink-0">
+                {% if readonly %}စစ်ထုတ်{% else %}筛选{% endif %}
             </button>
         </div>
 
         {% if not readonly %}
-        <div class="pr-wrap">
-            <div class="pr-labels">
-                <span id="prLabelMin">{{ "{:,}".format(price_min) }} MMK</span>
-                <span class="text-stone-400 font-normal normal-case">价格区间 Price Range</span>
-                <span id="prLabelMax">{{ "{:,}".format(price_max) }}{% if price_max >= price_filter_max %}+{% endif %} MMK</span>
-            </div>
-            <div class="pr-slider">
-                <div class="pr-track"></div>
-                <div class="pr-track-fill" id="prFill"></div>
-                <input type="range" id="prMinRange" min="{{ price_filter_min }}" max="{{ price_filter_max }}" step="10000" value="{{ price_min }}">
-                <input type="range" id="prMaxRange" min="{{ price_filter_min }}" max="{{ price_filter_max }}" step="10000" value="{{ price_max }}">
-            </div>
-            <input type="hidden" name="price_min" id="prHiddenMin" value="{{ price_min if price_min > price_filter_min else '' }}">
-            <input type="hidden" name="price_max" id="prHiddenMax" value="{{ price_max if price_max < price_filter_max else '' }}">
-        </div>
-        {% endif %}
-
-        <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-5 rounded-lg transition-all cursor-pointer h-[38px]">
-            {% if readonly %}စစ်ထုတ်{% else %}筛选{% endif %}
+        <!-- Secondary row: collapsed by default -->
+        <button type="button" id="dailyMoreFiltersToggle" onclick="toggleDailyMoreFilters()"
+            class="flex items-center gap-1.5 text-[11px] font-semibold text-stone-500 hover:text-stone-800 transition-colors py-1">
+            <svg id="dailyMoreFiltersChevron" class="w-3.5 h-3.5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+            <span>More Filters</span>
+            <span id="dailyMoreFiltersBadge" class="hidden bg-stone-900 text-white rounded-full text-[10px] font-bold px-1.5 py-0.5 leading-none min-w-[16px] text-center"></span>
         </button>
+
+        <div id="dailyMoreFiltersPanel" class="hidden space-y-3 pt-1 pb-1 border-t border-stone-200/60 pt-3">
+            <div class="min-w-[190px]">
+                <input type="hidden" name="source" id="filterSourceHidden" value="{{ selected_source or '' }}">
+                <button type="button" id="filterSourceTriggerBtn" class="wp-trigger text-xs p-2.5 w-full {% if not selected_source %}wp-empty{% endif %}" onclick="openSourceFilterPicker()">
+                    <span>{{ selected_source if selected_source else '全部来源 (All Sources)' }}</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
+
+            <div class="pr-wrap !min-w-0 w-full">
+                <div class="pr-labels">
+                    <span id="prLabelMin">{{ "{:,}".format(price_min) }} MMK</span>
+                    <span class="text-stone-400 font-normal normal-case">价格区间 Price Range</span>
+                    <span id="prLabelMax">{{ "{:,}".format(price_max) }}{% if price_max >= price_filter_max %}+{% endif %} MMK</span>
+                </div>
+                <div class="pr-slider">
+                    <div class="pr-track"></div>
+                    <div class="pr-track-fill" id="prFill"></div>
+                    <input type="range" id="prMinRange" min="{{ price_filter_min }}" max="{{ price_filter_max }}" step="10000" value="{{ price_min }}">
+                    <input type="range" id="prMaxRange" min="{{ price_filter_min }}" max="{{ price_filter_max }}" step="10000" value="{{ price_max }}">
+                </div>
+                <input type="hidden" name="price_min" id="prHiddenMin" value="{{ price_min if price_min > price_filter_min else '' }}">
+                <input type="hidden" name="price_max" id="prHiddenMax" value="{{ price_max if price_max < price_filter_max else '' }}">
+            </div>
+
+            <div class="relative w-full">
+                <label for="dailyCustomerSearch" class="sr-only">Search customer name</label>
+                <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none"
+                     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path stroke-linecap="round" d="m20 20-4-4"></path>
+                </svg>
+                <input
+                    type="search"
+                    id="dailyCustomerSearch"
+                    autocomplete="off"
+                    placeholder="Search customer name..."
+                    class="w-full h-9 pl-10 pr-10 rounded-xl border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 shadow-sm outline-none transition-all focus:border-stone-400 focus:ring-2 focus:ring-stone-900/5"
+                >
+                <button
+                    type="button"
+                    id="clearDailyCustomerSearch"
+                    aria-label="Clear customer search"
+                    class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 items-center justify-center rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                >
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Payment:</span>
+                <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
+                    <button type="button" id="paidFilterAllBtn" onclick="setDailyPaidFilter('all')"
+                        class="px-3 py-1.5 transition-all daily-paid-tab-all bg-stone-900 text-white">
+                        All
+                    </button>
+                    <button type="button" id="paidFilterPaidBtn" onclick="setDailyPaidFilter('paid')"
+                        class="px-3 py-1.5 transition-all daily-paid-tab-paid bg-white text-stone-500 hover:bg-stone-50">
+                        ✅ Paid
+                    </button>
+                    <button type="button" id="paidFilterUnpaidBtn" onclick="setDailyPaidFilter('unpaid')"
+                        class="px-3 py-1.5 transition-all daily-paid-tab-unpaid bg-white text-stone-500 hover:bg-stone-50">
+                        ⏳ Unpaid
+                    </button>
+                </div>
+            </div>
+
+            <div id="dailySearchStatus" class="hidden text-xs text-stone-500"></div>
+        </div>
+        {% endif %}
     </form>
 
-    {% if not readonly %}
-    <div class="mt-3 pt-3 border-t border-stone-200/60 space-y-3">
-        <div class="relative w-full max-w-full">
-            <label for="dailyCustomerSearch" class="sr-only">Search customer name</label>
-            <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none"
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="7"></circle>
-                <path stroke-linecap="round" d="m20 20-4-4"></path>
-            </svg>
-            <input
-                type="search"
-                id="dailyCustomerSearch"
-                autocomplete="off"
-                placeholder="Search customer name..."
-                class="w-full h-10 pl-10 pr-10 rounded-xl border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 shadow-sm outline-none transition-all focus:border-stone-400 focus:ring-2 focus:ring-stone-900/5"
-            >
-            <button
-                type="button"
-                id="clearDailyCustomerSearch"
-                aria-label="Clear customer search"
-                class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 items-center justify-center rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
-            >
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"></path>
-                </svg>
-            </button>
-        </div>
-
-        <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Payment:</span>
-            <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
-                <button type="button" id="paidFilterAllBtn" onclick="setDailyPaidFilter('all')"
-                    class="px-3 py-1.5 transition-all daily-paid-tab-all bg-stone-900 text-white">
-                    All
-                </button>
-                <button type="button" id="paidFilterPaidBtn" onclick="setDailyPaidFilter('paid')"
-                    class="px-3 py-1.5 transition-all daily-paid-tab-paid bg-white text-stone-500 hover:bg-stone-50">
-                    ✅ Paid
-                </button>
-                <button type="button" id="paidFilterUnpaidBtn" onclick="setDailyPaidFilter('unpaid')"
-                    class="px-3 py-1.5 transition-all daily-paid-tab-unpaid bg-white text-stone-500 hover:bg-stone-50">
-                    ⏳ Unpaid
-                </button>
-            </div>
-        </div>
-
-        <div id="dailySearchStatus" class="hidden text-xs text-stone-500"></div>
-    </div>
-    {% endif %}
-
-    <div class="flex flex-wrap gap-4 mt-4 pt-4 border-t border-stone-200/60 text-xs font-numeric text-stone-600">
+    <div class="flex flex-wrap gap-4 mt-3 pt-3 border-t border-stone-200/60 text-xs font-numeric text-stone-600">
         <span><strong class="text-stone-900">{{ total_orders }}</strong> {% if readonly %}အော်ဒါ{% else %}笔订单{% endif %}</span>
         {% if show_payment %}
         <span><strong class="text-stone-900">{{ "{:,}".format(total_revenue) }}</strong> {% if readonly %}MMK စုစုပေါင်း{% else %}MMK 合计{% endif %}</span>
@@ -273,6 +282,40 @@
 </div>
 
 <script>
+function toggleDailyMoreFilters(forceOpen) {
+    const panel = document.getElementById('dailyMoreFiltersPanel');
+    const chevron = document.getElementById('dailyMoreFiltersChevron');
+    if (!panel) return;
+    const shouldOpen = forceOpen !== undefined ? forceOpen : panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !shouldOpen);
+    if (chevron) chevron.style.transform = shouldOpen ? 'rotate(180deg)' : '';
+}
+
+function updateDailyMoreFiltersBadge() {
+    const badge = document.getElementById('dailyMoreFiltersBadge');
+    if (!badge) return;
+    let count = 0;
+
+    const sourceHidden = document.getElementById('filterSourceHidden');
+    if (sourceHidden && sourceHidden.value) count++;
+
+    const prMin = document.getElementById('prHiddenMin');
+    const prMax = document.getElementById('prHiddenMax');
+    if ((prMin && prMin.value) || (prMax && prMax.value)) count++;
+
+    const search = document.getElementById('dailyCustomerSearch');
+    if (search && search.value.trim()) count++;
+
+    if (typeof dailyPaidFilter !== 'undefined' && dailyPaidFilter !== 'all') count++;
+
+    if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const hidden = document.getElementById('filterDayHidden');
     const btn = document.getElementById('filterDayTriggerBtn');
@@ -289,7 +332,16 @@ document.addEventListener('DOMContentLoaded', function() {
         labelMinId: 'prLabelMin', labelMaxId: 'prLabelMax',
         fillId: 'prFill',
         floor: {{ price_filter_min }}, ceil: {{ price_filter_max }}
-    });
+    }).onCommit(updateDailyMoreFiltersBadge);
+
+    // Auto-expand "More Filters" if a source or price filter came in via the URL,
+    // so people don't lose track of an active filter behind a collapsed panel.
+    const sourceHidden = document.getElementById('filterSourceHidden');
+    const prMinHidden = document.getElementById('prHiddenMin');
+    const prMaxHidden = document.getElementById('prHiddenMax');
+    const hasServerFilters = (sourceHidden && sourceHidden.value) || (prMinHidden && prMinHidden.value) || (prMaxHidden && prMaxHidden.value);
+    if (hasServerFilters) toggleDailyMoreFilters(true);
+    updateDailyMoreFiltersBadge();
     {% endif %}
 });
 
@@ -332,7 +384,7 @@ function setDailyViewMode(mode) {
     };
     Object.keys(tabs).forEach((key) => {
         const active = key === mode;
-        tabs[key].className = 'px-3.5 py-2.5 transition-all daily-view-tab-' + key + ' ' +
+        tabs[key].className = 'px-3 py-2.5 transition-all daily-view-tab-' + key + ' ' +
             (active ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50');
     });
 }
@@ -353,6 +405,7 @@ function setDailyPaidFilter(mode) {
             (active ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50');
     });
     if (window.updateDailyOrderFilters) window.updateDailyOrderFilters();
+    updateDailyMoreFiltersBadge();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -436,18 +489,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.updateDailyOrderFilters = updateDailyOrderFilters;
 
-    searchInput.addEventListener('input', updateDailyOrderFilters);
+    searchInput.addEventListener('input', function() {
+        updateDailyOrderFilters();
+        updateDailyMoreFiltersBadge();
+    });
 
     clearButton.addEventListener('click', function() {
         searchInput.value = '';
         searchInput.focus();
         updateDailyOrderFilters();
+        updateDailyMoreFiltersBadge();
     });
 
     searchInput.addEventListener('keydown', function(event) {
         if (event.key === 'Escape' && searchInput.value) {
             searchInput.value = '';
             updateDailyOrderFilters();
+            updateDailyMoreFiltersBadge();
         }
     });
 });
