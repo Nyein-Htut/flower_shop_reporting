@@ -6,9 +6,6 @@ from functools import wraps
 import os
 from dotenv import load_dotenv
 load_dotenv()
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
 import csv
 import io
 
@@ -28,16 +25,6 @@ app.config.update(
     MAX_CONTENT_LENGTH=16 * 1024 * 1024
 )
 
-# ==========================================
-# CLOUDINARY CONFIGURATION
-# ==========================================
-cloudinary.config(
-    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.environ.get('CLOUDINARY_API_KEY'),
-    api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
-    secure=True
-)
-
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', '')
 
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
@@ -55,7 +42,7 @@ def get_myanmar_now():
     """Returns a datetime object set explicitly to Myanmar Time (UTC +6:30)"""
     myanmar_tz = timezone(timedelta(hours=6, minutes=30))
     return datetime.now(myanmar_tz)
-    
+
 db = SQLAlchemy(app)
 
 # ==========================================
@@ -70,7 +57,10 @@ class Order(db.Model):
     total_price = db.Column(db.Integer, nullable=False, default=0)
     time = db.Column(db.String(50), default='-')
     address = db.Column(db.Text, default='-')
-    delivery_fee = db.Column(db.Text, default='')
+    # Formerly "delivery_fee" in the cake-shop template — repurposed here to
+    # record which staff member wrapped/arranged the bouquet(s) for this
+    # order. Manager-facing label: 包花员工. Staff-facing label: ပန်းစည်းစည်းသူ.
+    wrapped_by = db.Column(db.Text, default='')
     is_paid = db.Column(db.Boolean, nullable=False, default=False)
     payment_date = db.Column(db.String(50), default='')
 
@@ -85,12 +75,11 @@ class OrderItem(db.Model):
     __tablename__ = 'order_items'
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
-    item_name = db.Column(db.String(200), default='Cake')
-    size = db.Column(db.String(50), default='-')
+    # No more photo uploads for this project, so item_name carries the full
+    # bouquet description instead of a short name + reference photo.
+    item_name = db.Column(db.Text, default='Flower Bouquet')
     price = db.Column(db.Integer, default=0)
     remarks = db.Column(db.Text, default='-')
-    image_url = db.Column(db.Text, default='')
-    flower_image_url = db.Column(db.Text, default='')
 
 # ==========================================
 # AUTHENTICATION DECORATORS
@@ -144,7 +133,7 @@ def login():
                 return redirect(url_for('staff_view'))
             error = "员工凭证错误，请重新输入 (Invalid staff credentials)"
             portal = 'staff'
-        elif username == "Memory Cake" and password == os.environ.get("MANAGER_PASSWORD", ""):
+        elif username == "Iris Flower" and password == os.environ.get("MANAGER_PASSWORD", ""):
             session.clear()
             session['logged_in'] = True
             session['role'] = 'manager'
@@ -171,19 +160,6 @@ def refresh_session():
         session.modified = True
 
 def _parse_daily_filters(default_view='day'):
-    """
-    Daily Records filter, mirroring the Monthly Report filter bar: a
-    day / month / year view-mode toggle plus one selected value.
-
-    Returns (view_mode, filter_value) where view_mode is one of
-    'day' | 'month' | 'year', and filter_value is the corresponding
-    'YYYY-MM-DD' / 'YYYY-MM' / 'YYYY' string.
-
-    `default_view` controls what the page opens to when no ?view= is
-    passed in the URL at all (e.g. the manager Daily page defaults to
-    'month' so it doesn't just show "today" every time it's opened, while
-    the staff Daily page keeps defaulting to 'day').
-    """
     if default_view not in ('day', 'month', 'year'):
         default_view = 'day'
 
@@ -197,17 +173,6 @@ def _parse_daily_filters(default_view='day'):
 
     filter_value = {'day': selected_day, 'month': selected_month, 'year': selected_year}[view_mode]
     return view_mode, filter_value, selected_day, selected_month, selected_year
-
-def _safe_price(prices, i):
-    """Index-safe price lookup. Staff forms omit price fields entirely
-    (prices are manager-only), so `prices` may be shorter than the items
-    list, or empty. Missing/blank/invalid values default to 0."""
-    try:
-        if i < len(prices) and prices[i] not in (None, ''):
-            return int(prices[i])
-    except (ValueError, TypeError):
-        pass
-    return 0
 
 def _format_date_display(date_str):
     try:
@@ -228,17 +193,10 @@ def _time_sort_key(order):
     return 24 * 60  # unparseable/blank times sort last
 
 def _group_query_by_day(query):
-    """Shared grouping logic: run an already-filtered Order query and bucket
-    the results by date, newest first. Used by both the on-page dashboard
-    (day / month / year) and the /api/export_orders endpoint (day / month /
-    year), so the two can never disagree on shape."""
     orders = query.order_by(Order.date.desc(), Order.id.desc()).all()
-
-    recent_cutoff = (get_myanmar_now() - timedelta(days=30)).strftime('%Y-%m-%d')
 
     groups = {}
     for order in orders:
-        order.is_recent = order.date >= recent_cutoff  # controls Cloudinary URL visibility on-page
         groups.setdefault(order.date, []).append(order)
 
     orders_by_day = []
@@ -254,15 +212,10 @@ def _group_query_by_day(query):
 
     return orders_by_day
 
-def _fetch_orders_for_period(mode, value, source=None):
+def _fetch_orders_for_period(mode, value, source=None, min_price=None, max_price=None):
     """Fetches orders scoped to a single day, a whole month, or a whole
-    year, grouped by day. Shared by the on-page Daily Records dashboard
-    and the /api/export_orders PDF-export feed, so the two can never drift
-    out of sync.
-
-    `source`, when given, restricts results to orders whose source exactly
-    matches it (manager-only "Filter by Source" control on the Daily
-    Records page)."""
+    year, grouped by day. Optionally restricted to a source and/or a
+    total-price range (manager-only "Price Range" filter)."""
     query = Order.query.options(joinedload(Order.items))
 
     if mode == 'day' and value:
@@ -276,10 +229,13 @@ def _fetch_orders_for_period(mode, value, source=None):
     if source:
         query = query.filter(Order.source == source)
 
+    if min_price is not None:
+        query = query.filter(Order.total_price >= min_price)
+    if max_price is not None:
+        query = query.filter(Order.total_price <= max_price)
+
     return _group_query_by_day(query)
 
-# Kept as a thin alias: some code/comments still refer to the "grouped by
-# day" helper by its original name.
 _fetch_orders_grouped_by_day = _fetch_orders_for_period
 _fetch_orders_for_export = _fetch_orders_for_period
 
@@ -291,14 +247,42 @@ def _available_years():
     }, reverse=True)
     return years or [get_myanmar_now().strftime('%Y')]
 
+PRICE_FILTER_MIN = 0
+PRICE_FILTER_MAX = 5000000
+
+def _parse_price_range():
+    """Price-range filter (0 - 5,000,000 MMK slider on the Daily Records
+    filter bar). Only applied server-side when narrower than the full
+    range, so a default/unused slider never adds a WHERE clause."""
+    try:
+        raw_min = request.args.get('price_min')
+        min_price = int(raw_min) if raw_min not in (None, '') else PRICE_FILTER_MIN
+    except (TypeError, ValueError):
+        min_price = PRICE_FILTER_MIN
+    try:
+        raw_max = request.args.get('price_max')
+        max_price = int(raw_max) if raw_max not in (None, '') else PRICE_FILTER_MAX
+    except (TypeError, ValueError):
+        max_price = PRICE_FILTER_MAX
+
+    min_price = max(PRICE_FILTER_MIN, min(min_price, PRICE_FILTER_MAX))
+    max_price = max(PRICE_FILTER_MIN, min(max_price, PRICE_FILTER_MAX))
+    if min_price > max_price:
+        min_price, max_price = max_price, min_price
+
+    applied_min = min_price if min_price > PRICE_FILTER_MIN else None
+    applied_max = max_price if max_price < PRICE_FILTER_MAX else None
+    return min_price, max_price, applied_min, applied_max
+
 def _daily_view_context(filter_action, default_view='day'):
     view_mode, filter_value, selected_day, selected_month, selected_year = _parse_daily_filters(default_view)
-    # Manager-only "Filter by Source" control on the Daily Records filter
-    # bar. Staff never send this param (they have no UI for it), so it's
-    # always empty for the staff view — kept in this shared helper anyway
-    # so the two views can never drift apart on filtering logic.
     selected_source = (request.args.get('source') or '').strip()
-    orders_by_day = _fetch_orders_for_period(view_mode, filter_value, source=selected_source or None)
+    price_min, price_max, applied_min, applied_max = _parse_price_range()
+
+    orders_by_day = _fetch_orders_for_period(
+        view_mode, filter_value, source=selected_source or None,
+        min_price=applied_min, max_price=applied_max
+    )
     total_orders = sum(d['order_count'] for d in orders_by_day)
     total_revenue = sum(d['day_total'] for d in orders_by_day)
 
@@ -309,17 +293,47 @@ def _daily_view_context(filter_action, default_view='day'):
         'selected_month': selected_month,
         'selected_year': selected_year,
         'selected_source': selected_source,
+        'price_min': price_min,
+        'price_max': price_max,
+        'price_filter_min': PRICE_FILTER_MIN,
+        'price_filter_max': PRICE_FILTER_MAX,
         'available_years': _available_years(),
         'filter_action': filter_action,
         'total_orders': total_orders,
         'total_revenue': total_revenue,
     }
 
-def _export_params_for_ctx(ctx):
-    """Builds the {day|month|year: value} dict (plus source, if active)
-    that describes 'whatever period is currently on screen'. Shared by the
-    Daily page's PDF-export button (index()) and the AJAX filter-refresh
-    endpoint (api_daily_records_html()) so the two can never drift apart."""
+def _serialize_order_for_export(o):
+    return {
+        'id': o.id,
+        'date': o.date,
+        'customer': o.customer,
+        'source': o.source,
+        'time': o.time,
+        'address': o.address,
+        'wrapped_by': o.wrapped_by or '',
+        'total_price': o.total_price,
+        'is_paid': bool(o.is_paid),
+        'payment_date': o.payment_date or '',
+        'items': [
+            {
+                'item_name': it.item_name,
+                'price': it.price,
+                'remarks': it.remarks,
+            }
+            for it in o.items
+        ],
+    }
+
+# ==========================================
+# MAIN ROUTES
+# ==========================================
+@app.route('/')
+@manager_required
+def index():
+    db.session.remove()
+    ctx = _daily_view_context(url_for('index'), default_view='month')
+
     if ctx['view_mode'] == 'day':
         export_params = {'day': ctx['selected_day']}
         period_value = ctx['selected_day']
@@ -332,76 +346,10 @@ def _export_params_for_ctx(ctx):
 
     if ctx.get('selected_source'):
         export_params['source'] = ctx['selected_source']
-
-    return export_params, period_value
-
-def _serialize_order_for_export(o):
-    return {
-        'id': o.id,
-        'date': o.date,
-        'customer': o.customer,
-        'source': o.source,
-        'time': o.time,
-        'address': o.address,
-        'delivery_fee': o.delivery_fee or '',
-        'total_price': o.total_price,
-        'is_paid': bool(o.is_paid),
-        'payment_date': o.payment_date or '',
-        'items': [
-            {
-                'item_name': it.item_name,
-                'size': it.size,
-                'price': it.price,
-                'remarks': it.remarks,
-                'image_url': it.image_url or '',
-                'flower_image_url': it.flower_image_url or '',
-            }
-            for it in o.items
-        ],
-    }
-
-def _extract_cloudinary_public_id(url):
-    """Given a Cloudinary secure_url, return its public_id (including folder), or None."""
-    if not url or 'cloudinary.com' not in url or '/upload/' not in url:
-        return None
-    try:
-        after_upload = url.split('/upload/', 1)[1]
-        parts = after_upload.split('/')
-        # Drop the version segment, e.g. 'v1728490213'
-        if parts and parts[0].startswith('v') and parts[0][1:].isdigit():
-            parts = parts[1:]
-        path_with_ext = '/'.join(parts)
-        public_id = path_with_ext.rsplit('.', 1)[0]  # strip file extension
-        return public_id or None
-    except Exception:
-        return None
-
-def _delete_cloudinary_asset(url):
-    """Best-effort delete of a Cloudinary image given its stored URL. Never raises."""
-    public_id = _extract_cloudinary_public_id(url)
-    if not public_id:
-        return
-    try:
-        result = cloudinary.uploader.destroy(public_id, resource_type="image")
-        print(f"[Cloudinary] destroy {public_id}: {result.get('result')}")
-    except Exception as e:
-        print(f"[Cloudinary DELETE ERROR] {public_id}: {e}")
-# ==========================================
-# MAIN ROUTES
-# ==========================================
-@app.route('/')
-@manager_required
-def index():
-    db.session.remove()
-    # Manager Daily view opens to "this month" by default (instead of
-    # "today") so it isn't just showing a near-empty single day every time
-    # the page loads. Explicitly passing ?view=day/year still works as usual.
-    ctx = _daily_view_context(url_for('index'), default_view='month')
-
-    # The PDF export button re-uses whichever filter (day/month/year, plus
-    # source if one is active) is currently active on the page, instead of
-    # opening its own picker.
-    export_params, period_value = _export_params_for_ctx(ctx)
+    if ctx.get('price_min', PRICE_FILTER_MIN) > PRICE_FILTER_MIN:
+        export_params['price_min'] = ctx['price_min']
+    if ctx.get('price_max', PRICE_FILTER_MAX) < PRICE_FILTER_MAX:
+        export_params['price_max'] = ctx['price_max']
 
     return render_template(
         'daily.html', active_page='daily', readonly=False, show_payment=True,
@@ -417,57 +365,9 @@ def staff_view():
     ctx = _daily_view_context(url_for('staff_view'))
     return render_template('staff_daily.html', active_page='staff', readonly=True, show_payment=False, **ctx)
 
-@app.route('/api/daily_records_html')
-@login_required
-def api_daily_records_html():
-    """Lightweight JSON+HTML feed for the Daily Records filter bar.
-
-    Returns just the order-card markup (partials/daily_records_orders.html)
-    plus the updated summary numbers for whatever day/month/year (and
-    source, manager-only) was requested. This is what lets switching
-    periods on the Daily Records page swap the results in place instead of
-    doing a full page reload — the filter bar, search box, and scroll
-    position never move.
-
-    Works for both roles (unlike /api/export_orders, which is manager-only
-    and returns the heavier full order+image payload used for PDF export)."""
-    db.session.remove()
-
-    is_staff = session.get('role') == 'staff'
-    if is_staff:
-        ctx = _daily_view_context(url_for('staff_view'))
-        readonly, show_payment = True, False
-    else:
-        ctx = _daily_view_context(url_for('index'), default_view='month')
-        readonly, show_payment = False, True
-
-    html = render_template(
-        'partials/daily_records_orders.html',
-        orders_by_day=ctx['orders_by_day'], readonly=readonly, show_payment=show_payment
-    )
-    export_params, period_value = _export_params_for_ctx(ctx)
-
-    payload = {
-        'html': html,
-        'total_orders': ctx['total_orders'],
-        'total_revenue': ctx['total_revenue'],
-        'day_count': len(ctx['orders_by_day']),
-        'export_params': export_params,
-        'period_value': period_value,
-    }
-    db.session.remove()
-    return jsonify(payload)
-
 @app.route('/api/export_orders')
 @manager_required
 def api_export_orders():
-    """JSON data feed for the client-side PDF export on the Daily page.
-    Returns orders grouped by day, same shape the on-page dashboard uses,
-    scoped to a single day, a whole month, or a whole year, and optionally
-    to a single source (mirrors the manager-only Filter by Source control).
-
-    Kept manager-only and JSON-only (no page render, no image-hosting
-    special-casing) so it stays fast even for a full year of orders."""
     db.session.remove()
 
     day = (request.args.get('day') or '').strip()
@@ -475,6 +375,7 @@ def api_export_orders():
     year = (request.args.get('year') or '').strip()
     view = (request.args.get('view') or '').strip()
     source = (request.args.get('source') or '').strip()
+    _, _, applied_min, applied_max = _parse_price_range()
 
     if day:
         mode, value = 'day', day
@@ -485,7 +386,7 @@ def api_export_orders():
     else:
         mode, value = 'all', ''
 
-    groups = _fetch_orders_for_period(mode, value, source=source or None)
+    groups = _fetch_orders_for_period(mode, value, source=source or None, min_price=applied_min, max_price=applied_max)
     total_orders = sum(g['order_count'] for g in groups)
     total_revenue = sum(g['day_total'] for g in groups)
 
@@ -512,9 +413,6 @@ def api_export_orders():
 @app.route('/add_order', methods=['POST'])
 @login_required
 def add_order():
-    # Only managers are allowed to mark an order as paid. Staff never send
-    # this field at all (it's removed from their form), but we also guard
-    # server-side in case of a crafted request.
     if _is_manager():
         is_paid = request.form.get('is_paid') == 'on'
         payment_date = request.form.get('payment_date') or ''
@@ -527,78 +425,34 @@ def add_order():
     customer = request.form.get('customer')
     time = request.form.get('time') or '-'
     address = request.form.get('address') or '-'
-    delivery_fee = request.form.get('delivery_fee') or ''
+    wrapped_by = request.form.get('wrapped_by') or ''
 
     item_names = request.form.getlist('item_name[]')
-    sizes = request.form.getlist('size[]')
     prices = request.form.getlist('item_price[]')
     remarks_list = request.form.getlist('remarks[]')
 
-    uploaded_flowers = request.files.getlist('flowerImage[]')
-    uploaded_cakes = request.files.getlist('cakeImage[]')
-
     new_order = Order(
         date=order_date, source=source, customer=customer, total_price=0, time=time, address=address,
-        delivery_fee=delivery_fee, is_paid=is_paid, payment_date=payment_date
+        wrapped_by=wrapped_by, is_paid=is_paid, payment_date=payment_date
     )
     db.session.add(new_order)
     db.session.flush()
 
     calculated_total = 0
-    timestamp_prefix = int(datetime.now().timestamp())
-
     for i in range(len(item_names)):
-        item_price = _safe_price(prices, i)
+        if not (item_names[i] or '').strip():
+            continue
+        try:
+            item_price = int(prices[i]) if i < len(prices) and prices[i] not in (None, '') else 0
+        except (ValueError, TypeError):
+            item_price = 0
         calculated_total += item_price
-
-        flower_url = ""
-        if i < len(uploaded_flowers):
-            f_file = uploaded_flowers[i]
-            if f_file and f_file.filename != '':
-                try:
-                    f_file.stream.seek(0)
-                    result = cloudinary.uploader.upload(
-                        f_file.stream,
-                        folder="memory_cake/flowers",
-                        public_id=f"{timestamp_prefix}_flr_{i}",
-                        overwrite=True,
-                        resource_type="image"
-                    )
-                    flower_url = result['secure_url']
-                    print(f"[Cloudinary] flower uploaded OK: {flower_url}")
-                except Exception as e:
-                    err = f"图片上传失败 flower item {i+1}: {e}"
-                    print(f"[Cloudinary ERROR] {err}")
-                    flash(err, 'error')
-
-        cake_url = ""
-        if i < len(uploaded_cakes):
-            c_file = uploaded_cakes[i]
-            if c_file and c_file.filename != '':
-                try:
-                    c_file.stream.seek(0)
-                    result = cloudinary.uploader.upload(
-                        c_file.stream,
-                        folder="memory_cake/cakes",
-                        public_id=f"{timestamp_prefix}_cke_{i}",
-                        overwrite=True,
-                        resource_type="image"
-                    )
-                    cake_url = result['secure_url']
-                    print(f"[Cloudinary] cake uploaded OK: {cake_url}")
-                except Exception as e:
-                    err = f"图片上传失败 cake item {i+1}: {e}"
-                    print(f"[Cloudinary ERROR] {err}")
-                    flash(err, 'error')
 
         sub_item = OrderItem(
             order_id=new_order.id,
-            item_name=item_names[i] or 'Cake',
-            size=sizes[i] or '-',
+            item_name=item_names[i] or 'Flower Bouquet',
             price=item_price,
-            remarks=remarks_list[i] or '-',
-            image_url=cake_url,
-            flower_image_url=flower_url
+            remarks=remarks_list[i] if i < len(remarks_list) else '-',
         )
         db.session.add(sub_item)
 
@@ -614,12 +468,6 @@ def add_order():
 def delete_order(id):
     order = Order.query.options(joinedload(Order.items)).get_or_404(id)
     try:
-        for item in order.items:
-            if item.image_url:
-                _delete_cloudinary_asset(item.image_url)
-            if item.flower_image_url:
-                _delete_cloudinary_asset(item.flower_image_url)
-
         db.session.delete(order)
         db.session.commit()
         flash("Order deleted successfully.")
@@ -640,35 +488,11 @@ def edit_order(order_id):
     order.customer = request.form.get('customer')
     order.time = request.form.get('time') or '-'
     order.address = request.form.get('address') or '-'
-    order.delivery_fee = request.form.get('delivery_fee') or ''
-
-    # Payment status (is_paid / payment_date) is intentionally NOT touched
-    # here for either role. It used to be a checkbox buried inside this
-    # edit form, but it's now managed directly from the order card via the
-    # "Mark as Paid" toggle (see /toggle_payment below), so the edit form
-    # no longer needs to carry or submit that field at all.
+    order.wrapped_by = request.form.get('wrapped_by') or ''
 
     names = request.form.getlist('edit_item_name[]')
-    sizes = request.form.getlist('edit_size[]')
     prices = request.form.getlist('edit_price[]')
     remarks = request.form.getlist('edit_remarks[]')
-
-    old_cake_images = request.form.getlist('old_cake_image[]')
-    old_flower_images = request.form.getlist('old_flower_image[]')
-    new_cake_files = request.files.getlist('editCakeImage[]')
-    new_flower_files = request.files.getlist('editFlowerImage[]')
-    timestamp_prefix = int(datetime.now().timestamp())
-
-    # Snapshot every image URL this order currently owns, BEFORE any DB changes.
-    existing_items = OrderItem.query.filter_by(order_id=order.id).all()
-    urls_before = set()
-    for oi in existing_items:
-        if oi.image_url:
-            urls_before.add(oi.image_url)
-        if oi.flower_image_url:
-            urls_before.add(oi.flower_image_url)
-
-    urls_after = set()
 
     try:
         OrderItem.query.filter_by(order_id=order.id).delete()
@@ -677,73 +501,22 @@ def edit_order(order_id):
         for i in range(len(names)):
             if not names[i].strip():
                 continue
-            price = _safe_price(prices, i)
+            try:
+                price = int(prices[i]) if i < len(prices) and prices[i] not in (None, '') else 0
+            except (ValueError, TypeError):
+                price = 0
             total_price += price
-
-            cake_url = old_cake_images[i] if i < len(old_cake_images) else ''
-            if i < len(new_cake_files):
-                c_file = new_cake_files[i]
-                if c_file and c_file.filename != '':
-                    try:
-                        c_file.stream.seek(0)
-                        result = cloudinary.uploader.upload(
-                            c_file.stream,
-                            folder="memory_cake/cakes",
-                            public_id=f"{timestamp_prefix}_editcke_{i}",
-                            overwrite=True,
-                            resource_type="image"
-                        )
-                        cake_url = result['secure_url']
-                        print(f"[Cloudinary] edit cake uploaded OK: {cake_url}")
-                    except Exception as e:
-                        err = f"图片上传失败 edit cake item {i+1}: {e}"
-                        print(f"[Cloudinary ERROR] {err}")
-                        flash(err, 'error')
-
-            flower_url = old_flower_images[i] if i < len(old_flower_images) else ''
-            if i < len(new_flower_files):
-                f_file = new_flower_files[i]
-                if f_file and f_file.filename != '':
-                    try:
-                        f_file.stream.seek(0)
-                        result = cloudinary.uploader.upload(
-                            f_file.stream,
-                            folder="memory_cake/flowers",
-                            public_id=f"{timestamp_prefix}_editflr_{i}",
-                            overwrite=True,
-                            resource_type="image"
-                        )
-                        flower_url = result['secure_url']
-                        print(f"[Cloudinary] edit flower uploaded OK: {flower_url}")
-                    except Exception as e:
-                        err = f"图片上传失败 edit flower item {i+1}: {e}"
-                        print(f"[Cloudinary ERROR] {err}")
-                        flash(err, 'error')
-
-            if cake_url:
-                urls_after.add(cake_url)
-            if flower_url:
-                urls_after.add(flower_url)
 
             new_item = OrderItem(
                 order_id=order.id,
                 item_name=names[i],
-                size=sizes[i] if i < len(sizes) else '-',
                 price=price,
                 remarks=remarks[i] if i < len(remarks) else '-',
-                image_url=cake_url,
-                flower_image_url=flower_url
             )
             db.session.add(new_item)
 
         order.total_price = total_price
         db.session.commit()
-
-        # Anything that existed before but isn't referenced anymore = orphaned. Clean it up.
-        orphaned_urls = urls_before - urls_after
-        for url in orphaned_urls:
-            _delete_cloudinary_asset(url)
-
         flash('Order updated successfully.')
     except Exception as e:
         db.session.rollback()
@@ -764,8 +537,6 @@ def _normalize_source(source):
     return source
 
 def _compute_monthly_report(view_mode, selected_month, selected_year):
-    """Shared aggregation logic for both the /monthly dashboard page and the
-    /monthly/export CSV download, so the two can never drift out of sync."""
     if view_mode == 'year':
         date_filter = f"{selected_year}%"
         period_label = selected_year
@@ -802,20 +573,16 @@ def _compute_monthly_report(view_mode, selected_month, selected_year):
         for item in order.items:
             total_items_count += 1
             item_name = item.item_name or 'Unknown'
-            size = item.size or '-'
             price = item.price or 0
             if item_name not in item_stats:
-                item_stats[item_name] = {'count': 0, 'revenue': 0, 'sizes': set()}
+                item_stats[item_name] = {'count': 0, 'revenue': 0}
             item_stats[item_name]['count'] += 1
             item_stats[item_name]['revenue'] += price
-            if size != '-':
-                item_stats[item_name]['sizes'].add(size)
 
     top_items = []
     for name, stats in item_stats.items():
         top_items.append({
             'name': name,
-            'sizes': ' / '.join(stats['sizes']) if stats['sizes'] else 'Standard',
             'count': stats['count'],
             'revenue': stats['revenue']
         })
@@ -943,7 +710,6 @@ def monthly():
     selected_year = request.args.get('year', get_myanmar_now().strftime('%Y'))
 
     report = _compute_monthly_report(view_mode, selected_month, selected_year)
-
     available_years = _available_years()
 
     return render_template(
@@ -956,12 +722,9 @@ def monthly():
         **report
     )
 
-
 @app.route('/monthly/export')
 @manager_required
 def monthly_export():
-    """CSV export of the monthly/annual report (summary + channels + top
-    items + top customers) for whichever period is currently selected."""
     view_mode = request.args.get('view', 'month')
     selected_month = request.args.get('month', get_myanmar_now().strftime('%Y-%m'))
     selected_year = request.args.get('year', get_myanmar_now().strftime('%Y'))
@@ -971,7 +734,7 @@ def monthly_export():
     buf = io.StringIO()
     writer = csv.writer(buf)
 
-    writer.writerow(['Memory Cake — 业务报表 Business Report'])
+    writer.writerow(['Iris Flower — 业务报表 Business Report'])
     writer.writerow(['Period', report['period_label']])
     writer.writerow([])
 
@@ -996,9 +759,9 @@ def monthly_export():
     writer.writerow([])
 
     writer.writerow(['TOP SELLING ITEMS'])
-    writer.writerow(['Rank', 'Item Name', 'Common Sizes', 'Units Sold', 'Revenue (MMK)'])
+    writer.writerow(['Rank', 'Item Name', 'Units Sold', 'Revenue (MMK)'])
     for i, item in enumerate(report['top_items_all'], start=1):
-        writer.writerow([i, item['name'], item['sizes'], item['count'], item['revenue']])
+        writer.writerow([i, item['name'], item['count'], item['revenue']])
     writer.writerow([])
 
     writer.writerow(['TOP CUSTOMERS'])
@@ -1008,164 +771,8 @@ def monthly_export():
 
     mem = io.BytesIO(('\ufeff' + buf.getvalue()).encode('utf-8'))
     label = report['period_label']
-    filename = f"Memory_Cake_Report_{label}.csv"
+    filename = f"Iris_Flower_Report_{label}.csv"
     return send_file(mem, mimetype='text/csv', as_attachment=True, download_name=filename)
-
-
-@app.route('/check-cloudinary')
-@manager_required
-def check_cloudinary():
-    """Diagnostic: verify Cloudinary credentials are loaded and working."""
-    cfg = cloudinary.config()
-    cloud = cfg.cloud_name or 'NOT SET'
-    key = cfg.api_key or 'NOT SET'
-    secret = '✅ set' if cfg.api_secret else '❌ NOT SET'
-    try:
-        result = cloudinary.api.ping()
-        ping = f"✅ {result}"
-    except Exception as e:
-        ping = f"❌ {e}"
-    return (
-        f"<b>cloud_name:</b> {cloud}<br>"
-        f"<b>api_key:</b> {key}<br>"
-        f"<b>api_secret:</b> {secret}<br>"
-        f"<b>ping:</b> {ping}<br><br>"
-        f"<a href='/'>← Back to app</a>"
-    )
-
-
-@app.route('/debug-upload')
-@manager_required
-def debug_upload():
-    """Test Cloudinary config and do a real tiny upload to confirm it works end-to-end."""
-    import io
-    lines = []
-    cfg = cloudinary.config()
-    lines.append(f"<b>cloud_name:</b> {cfg.cloud_name or '❌ NOT SET'}")
-    lines.append(f"<b>api_key:</b> {cfg.api_key or '❌ NOT SET'}")
-    lines.append(f"<b>api_secret:</b> {'✅ set' if cfg.api_secret else '❌ NOT SET'}")
-
-    # Ping
-    try:
-        ping = cloudinary.api.ping()
-        lines.append(f"<b>ping:</b> ✅ {ping.get('status')}")
-    except Exception as e:
-        lines.append(f"<b>ping:</b> ❌ {e}")
-        return "<br>".join(lines) + "<br><br><a href='/'>← Back</a>"
-
-    # Attempt a real upload of a 1×1 white PNG
-    try:
-        tiny_png = (
-            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-            b'\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00'
-            b'\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18'
-            b'\xd8N\x00\x00\x00\x00IEND\xaeB`\x82'
-        )
-        result = cloudinary.uploader.upload(
-            io.BytesIO(tiny_png),
-            folder="memory_cake/test",
-            public_id="debug_ping_test",
-            overwrite=True,
-            resource_type="image"
-        )
-        lines.append(f"<b>test upload:</b> ✅ <a href='{result['secure_url']}' target='_blank'>{result['secure_url']}</a>")
-    except Exception as e:
-        lines.append(f"<b>test upload:</b> ❌ {e}")
-
-    return "<br>".join(lines) + "<br><br><a href='/'>← Back</a>"
-
-
-@app.route('/test-upload-form', methods=['GET', 'POST'])
-@manager_required
-def test_upload_form():
-    """Simple isolated upload test to diagnose form file delivery.
-
-    Use ?mode=raw to inspect the unparsed WSGI body (proves whether bytes
-    arrive at all at the gunicorn/WSGI layer).
-    Use ?mode=files (default) to run the normal Werkzeug file-parsing path.
-    These two modes are mutually exclusive in a single request: reading the
-    raw body first will exhaust the stream and request.files will then
-    always report empty, which would falsely look like the bug itself.
-    """
-    mode = request.args.get('mode', 'files')
-
-    if request.method == 'POST':
-        lines = []
-
-        # Headers are always safe to read; they don't touch the body stream.
-        environ = request.environ
-        lines.append("<b>Mode:</b> " + mode)
-        lines.append("<b>CONTENT_LENGTH header:</b> " + str(environ.get('CONTENT_LENGTH', '<not set>')))
-        lines.append("<b>CONTENT_TYPE header:</b> " + str(environ.get('CONTENT_TYPE', '<not set>')))
-        lines.append("<b>Transfer-Encoding header:</b> " + str(environ.get('HTTP_TRANSFER_ENCODING', '<not set>')))
-        lines.append("<b>wsgi.input type:</b> " + str(type(environ.get('wsgi.input'))))
-
-        if mode == 'raw':
-            # This branch deliberately does NOT touch request.files/request.form.
-            try:
-                raw_body = request.get_data(cache=True, parse_form_data=False)
-                lines.append("<b>Raw body length via get_data():</b> " + str(len(raw_body)))
-                if len(raw_body) > 0:
-                    lines.append("<b>Raw body first 300 bytes (repr):</b> " + repr(raw_body[:300]))
-                    lines.append("<b>Raw body last 100 bytes (repr):</b> " + repr(raw_body[-100:]))
-                else:
-                    lines.append("<b>Raw body is EMPTY at the WSGI layer — bytes never reached gunicorn/Flask. Look at the reverse proxy / client, not the Python code.</b>")
-            except Exception as e:
-                lines.append("<b>get_data() raised:</b> " + repr(e))
-
-        else:
-            # Normal high-level Werkzeug form/file parsing path (this is what
-            # the rest of the app actually uses for real uploads).
-            file_keys = list(request.files.keys())
-            form_keys = list(request.form.keys())
-            lines.append("<b>Files in request:</b> " + str(file_keys))
-            lines.append("<b>Form fields:</b> " + str(form_keys))
-
-            uploaded = request.files.get('testfile')
-            if not uploaded:
-                lines.append("<b>No file received — form not sending files</b>")
-            elif uploaded.filename == '':
-                lines.append("<b>File received but filename is empty</b>")
-            else:
-                lines.append("<b>File received:</b> " + uploaded.filename + " (" + uploaded.content_type + ")")
-                lines.append("<b>uploaded.content_length attr:</b> " + str(getattr(uploaded, 'content_length', '<n/a>')))
-                try:
-                    pos_before = uploaded.stream.tell()
-                    lines.append("<b>stream position before read:</b> " + str(pos_before))
-                except Exception as e:
-                    lines.append("<b>stream.tell() failed:</b> " + repr(e))
-                uploaded.stream.seek(0)
-                file_bytes = uploaded.stream.read()
-                lines.append("<b>Bytes read:</b> " + str(len(file_bytes)))
-                if len(file_bytes) > 0:
-                    try:
-                        result = cloudinary.uploader.upload(
-                            file_bytes,
-                            folder="memory_cake/test",
-                            public_id="test_real_upload",
-                            overwrite=True,
-                            resource_type="image"
-                        )
-                        url = result['secure_url']
-                        lines.append("<b>Cloudinary upload OK:</b> <a href='" + url + "' target='_blank'>View image</a>")
-                    except Exception as e:
-                        lines.append("<b>Cloudinary upload failed:</b> " + str(e))
-                else:
-                    lines.append("<b>file_bytes is empty after read()</b>")
-
-        return "<br><br>".join(lines) + "<br><br><a href='/test-upload-form'>Try again (files mode)</a> | <a href='/test-upload-form?mode=raw'>Try again (raw mode)</a> | <a href='/'>Back</a>"
-
-    return """
-    <html><body style="font-family:sans-serif;padding:40px">
-    <h2>Upload Test</h2>
-    <p>Mode: """ + mode + """ — <a href='?mode=files'>files mode</a> | <a href='?mode=raw'>raw mode</a></p>
-    <form method="POST" enctype="multipart/form-data" action="?mode=""" + mode + """">
-        <input type="file" name="testfile" accept="image/*"><br><br>
-        <button type="submit">Upload to Cloudinary</button>
-    </form>
-    </body></html>
-    """
-
 
 @app.route('/run-migration')
 @manager_required
@@ -1174,17 +781,14 @@ def run_migration():
     with db.engine.connect() as conn:
         from sqlalchemy import text
         for col, col_type, default in [
-            ('image_url', 'TEXT', "''"),
-            ('flower_image_url', 'TEXT', "''"),
+            ('wrapped_by', 'TEXT', "''"),
             ('is_paid', 'BOOLEAN', 'FALSE'),
             ('payment_date', 'TEXT', "''"),
-            ('delivery_fee', 'TEXT', "''"),
         ]:
             try:
-                table = 'order_items' if col in ('image_url', 'flower_image_url') else 'orders'
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type} DEFAULT {default}"))
+                conn.execute(text(f"ALTER TABLE orders ADD COLUMN {col} {col_type} DEFAULT {default}"))
                 conn.commit()
-                results.append(f"Added column: {table}.{col}")
+                results.append(f"Added column: orders.{col}")
             except Exception as e:
                 results.append(f"{col}: {str(e).split('ERROR:')[-1].strip()}")
     return "<br>".join(results) + "<br><br><a href='/'>Back to app</a>"
@@ -1236,24 +840,23 @@ def archive_export():
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        'order_id', 'date', 'source', 'customer', 'time', 'address',
+        'order_id', 'date', 'source', 'customer', 'time', 'address', 'wrapped_by',
         'is_paid', 'payment_date', 'order_total',
-        'item_name', 'size', 'item_price', 'remarks', 'image_url', 'flower_image_url'
+        'item_name', 'item_price', 'remarks'
     ])
     for o in orders:
         if not o.items:
-            writer.writerow([o.id, o.date, o.source, o.customer, o.time, o.address,
-                              o.is_paid, o.payment_date, o.total_price, '', '', '', '', '', ''])
+            writer.writerow([o.id, o.date, o.source, o.customer, o.time, o.address, o.wrapped_by,
+                              o.is_paid, o.payment_date, o.total_price, '', '', ''])
         for item in o.items:
             writer.writerow([
-                o.id, o.date, o.source, o.customer, o.time, o.address,
+                o.id, o.date, o.source, o.customer, o.time, o.address, o.wrapped_by,
                 o.is_paid, o.payment_date, o.total_price,
-                item.item_name, item.size, item.price, item.remarks,
-                item.image_url, item.flower_image_url
+                item.item_name, item.price, item.remarks
             ])
 
     mem = io.BytesIO(('\ufeff' + buf.getvalue()).encode('utf-8'))
-    filename = f"Memory_Cake_Archive_before_{cutoff}.csv"
+    filename = f"Iris_Flower_Archive_before_{cutoff}.csv"
     return send_file(mem, mimetype='text/csv', as_attachment=True, download_name=filename)
 
 @app.route('/admin/archive/delete', methods=['POST'])
@@ -1282,23 +885,14 @@ def archive_delete():
 @manager_required
 def spreadsheet():
     rows = []
-    orders = Order.query.order_by(
-        Order.date.desc()
-    ).all()
+    orders = Order.query.order_by(Order.date.desc()).all()
     for order in orders:
         for item in order.items:
-            rows.append({
-                "order": order,
-                "item": item
-            })
-    return render_template(
-        "spreadsheet.html",
-        rows=rows
-    )
+            rows.append({"order": order, "item": item})
+    return render_template("spreadsheet.html", rows=rows)
 
 @app.route("/api/update-cell", methods=["POST"])
 def update_cell():
-
     data = request.json
 
     table = data["table"]
@@ -1308,33 +902,22 @@ def update_cell():
 
     if table == "order":
         obj = Order.query.get(id)
-
     elif table == "item":
         obj = OrderItem.query.get(id)
-
     else:
-        return {
-            "success": False,
-            "message": "Invalid table"
-        }
+        return {"success": False, "message": "Invalid table"}
 
     if not obj:
-        return {
-            "success": False,
-            "message": "Not found"
-        }
+        return {"success": False, "message": "Not found"}
 
     if field == "is_paid":
         value = True if value == "1" else False
 
     setattr(obj, field, value)
-
     db.session.commit()
 
-    return {
-        "success": True
-    }
-    
+    return {"success": True}
+
 @app.route('/health')
 def health():
     return "OK", 200
