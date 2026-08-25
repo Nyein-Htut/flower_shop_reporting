@@ -1047,7 +1047,8 @@ function openSourceFilterPicker() {
             span.textContent = val || allLabel;
             btn.classList.toggle('wp-empty', !val);
             closeWheelOverlay('wpSourceOverlay');
-            document.getElementById('dailyFilterForm').submit();
+            if (window.updateDailyOrderFilters) window.updateDailyOrderFilters();
+            updateDailyMoreFiltersBadge();
         });
         listEl.appendChild(item);
     });
@@ -1678,12 +1679,6 @@ function togglePaymentDate(wrapId, hiddenId, triggerBtnId, checkboxId) {
     }
 }
 
-/* ===== Price Range Slider (dual thumb, 0 - 5,000,000 MMK) =====
-   Generic helper used by the Daily Records filter bar. Renders two
-   overlapping <input type=range> elements sharing one visual track, keeps
-   the min handle from crossing the max handle, and updates a fill bar +
-   label text live. On "commit" (change event) it writes into the two
-   hidden inputs the filter form submits with. */
 function wpInitPriceRangeSlider(cfg) {
     const { minInputId, maxInputId, hiddenMinId, hiddenMaxId, labelMinId, labelMaxId, fillId, floor, ceil } = cfg;
     const minInput = document.getElementById(minInputId);
