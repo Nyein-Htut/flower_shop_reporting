@@ -417,6 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateDailyOrderFilters() {
         const query = searchInput.value.trim().toLowerCase();
+        const sourceHiddenEl = document.getElementById('filterSourceHidden');
+        const sourceFilterValue = sourceHiddenEl ? sourceHiddenEl.value : '';
         const dayGroups = document.querySelectorAll('#ordersRoot .day-group');
         let matchedOrders = 0;
         let totalOrders = 0;
