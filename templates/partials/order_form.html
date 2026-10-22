@@ -1,187 +1,391 @@
-{# Manager order entry form — Iris Flower Edition #}
-<div class="no-print mb-2" id="orderFormToggleWrap">
-    <button type="button" id="orderFormToggleBtn" onclick="openOrderModal()" class="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs uppercase tracking-widest font-sans font-semibold py-4 px-6 rounded-2xl transition-all shadow-md hover:shadow-lg cursor-pointer">
-        <span class="text-base leading-none">➕</span>
-        <span>新增订单 (Add an Order)</span>
-    </button>
-</div>
+{# Unified order form (add + edit) for manager (Chinese) and staff (Burmese).
+   Needs: readonly (True = staff), show_payment (manager only), wrappers (list of {id,name}). #}
 
-<!-- Modal Overlay Container -->
-<div id="orderFormModal" class="fixed inset-0 z-50 hidden bg-emerald-950/40 backdrop-blur-sm no-print flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
+{% if readonly %}
+{% set t = {
+  'titleAdd': 'အော်ဒါအသစ် ထည့်ရန်', 'titleEdit': 'အော်ဒါ ပြင်ဆင်ရန်',
+  'sec1': 'အော်ဒါအချက်အလက်', 'sec2': 'ပန်းစည်းအသေးစိတ်',
+  'src': 'အော်ဒါလာသည့်နေရာ', 'srcTitle': 'အော်ဒါလာသည့်နေရာ ရွေးပါ (Select Source)',
+  'customer': 'ဖောက်သည်အမည်', 'datetime': 'ပေးပို့မည့် ရက်စွဲ & အချိန်',
+  'pick': 'ရွေးပါ', 'address': 'နေရပ်', 'fee': 'ကားခ',
+  'addBouquet': '➕ ပန်းစည်းထည့်ရန်', 'bouquet': 'ပန်းစည်း',
+  'name': 'ပန်းစည်းအမည်', 'paper': 'Paper အရောင်', 'price': 'စျေးနှုန်း',
+  'photo': 'ဓာတ်ပုံ', 'wrapper': 'ပန်းစည်းစည်းသူ', 'remarks': 'မှတ်ချက်',
+  'cake': 'ကိတ်ပါ မပါ', 'cakeYes': 'ကိတ်ပါ', 'cakeNo': 'ကိတ်မပါ', 'cakePhoto': 'ကိတ်ဓာတ်ပုံ',
+  'save': 'သိမ်းဆည်းမည်', 'update': 'မွမ်းမံမည်', 'cancel': 'ပယ်ဖျက်', 'saving': 'သိမ်းနေသည်…',
+  'needOne': 'ပန်းစည်းအမည် အနည်းဆုံး တစ်ခု ထည့်ပါ။'
+} %}
+{% else %}
+{% set t = {
+  'titleAdd': '新增订单', 'titleEdit': '修改订单',
+  'sec1': '订单信息', 'sec2': '花束明细',
+  'src': '订单来源', 'srcTitle': '订单来源选择 (Select Source)',
+  'customer': '客人姓名', 'datetime': '送达日期时间',
+  'pick': '请选择', 'address': '地址 (နေရပ်)', 'fee': '车费 (ကားခ)',
+  'addBouquet': '➕ 添加花束', 'bouquet': '花束',
+  'name': '花束名称', 'paper': '包装纸颜色', 'price': '金额',
+  'photo': '照片', 'wrapper': '包花员工', 'remarks': '备注',
+  'cake': '是否有蛋糕', 'cakeYes': '有蛋糕', 'cakeNo': '无蛋糕', 'cakePhoto': '蛋糕照片',
+  'save': '保存订单', 'update': '保存修改', 'cancel': '取消', 'saving': '保存中…',
+  'needOne': '请至少填写一个花束名称。',
+  'manage': '管理包花员工', 'wmAdd': '添加', 'wmPlaceholder': '新员工姓名',
+  'wmEmpty': '还没有员工，请先添加。', 'wmEditPrompt': '修改姓名：', 'wmDelConfirm': '确定删除这位员工吗？',
+  'paid': '已付款 (Mark as Paid)', 'payDate': '付款日期', 'payPick': '选择付款日期'
+} %}
+{% endif %}
 
-    <!-- Modal Box -->
-    <section class="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border border-stone-200 relative" id="orderFormSection">
+<style>
+    .fab-add {
+        position: fixed; right: 22px; bottom: 22px; z-index: 40;
+        width: 62px; height: 62px; border-radius: 9999px; border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 34px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        box-shadow: 0 10px 24px rgba(0,0,0,.28); transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .fab-add:hover { transform: scale(1.07); box-shadow: 0 14px 30px rgba(0,0,0,.32); }
+    .of-step { display:inline-flex; width:22px; height:22px; border-radius:9999px; align-items:center; justify-content:center; font-size:11px; font-weight:700; background:#1c1917; color:#fff; margin-right:8px; }
+    .of-photo { max-height: 110px; border-radius: 10px; margin-bottom: 6px; border: 1px solid #e7e5e4; }
+</style>
 
-        <!-- Modal Header -->
-        <div class="sticky top-0 bg-white/95 backdrop-blur-md z-20 px-6 py-5 border-b border-stone-100 flex items-center justify-between">
-            <h2 class="section-title text-emerald-800 text-lg font-bold flex items-center gap-2">
-                <span class="p-1.5 bg-emerald-100 rounded-xl text-lg">📝</span>
-                新账单快速录入
-            </h2>
-            <button type="button" onclick="closeOrderModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer">
-                <span class="text-lg font-bold">✕</span>
-            </button>
+<button type="button" class="fab-add no-print bg-emerald-700 hover:bg-emerald-800 text-white" onclick="openOrderForm()" aria-label="{{ t.titleAdd }}" title="{{ t.titleAdd }}">+</button>
+
+<div id="orderFormModal" class="fixed inset-0 z-50 hidden bg-emerald-950/40 backdrop-blur-sm no-print items-center justify-center p-3 sm:p-6">
+    <section class="bg-white w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl border border-stone-200 relative">
+
+        <div class="sticky top-0 bg-white/95 backdrop-blur-md z-20 px-6 py-4 border-b border-stone-100 flex items-center justify-between">
+            <h2 id="orderFormTitle" class="text-lg font-bold text-stone-900 font-sans">{{ t.titleAdd }}</h2>
+            <button type="button" onclick="closeOrderForm()" class="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700">✕</button>
         </div>
 
-        <!-- Form Body -->
-        <form action="/add_order" method="POST" onsubmit="handleFormSubmit(event)" class="p-6 space-y-6 text-sm font-sans">
+        <form id="orderForm" method="POST" action="/add_order" enctype="multipart/form-data" onsubmit="return orderFormSubmit()" class="p-5 sm:p-6 space-y-7 text-sm font-sans">
 
-            <div class="space-y-5">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
-                        <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">🏷️ 订单来源 (Source)</label>
-                        <input type="hidden" name="source" id="sourceHidden" value="">
-                        <button type="button" id="sourceTriggerBtn" class="wp-trigger wp-empty w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-left flex justify-between items-center bg-white" onclick="openSourcePicker('sourceTriggerBtn','sourceHidden','订单来源选择 (Select Source)')">
-                            <!--<span class="text-stone-400">选择订单来源 Select Source</span>-->
-                            <svg class="w-4 h-4 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            <!-- ===== Section 1: order info ===== -->
+            <div class="space-y-3">
+                <h3 class="text-xs font-bold tracking-widest uppercase text-stone-600"><span class="of-step">1</span>{{ t.sec1 }}</h3>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="ef-field">
+                        <label class="ef-label">🏷️ {{ t.src }}</label>
+                        <input type="hidden" name="source" id="f_source" value="">
+                        <button type="button" id="f_srcBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openSourcePicker('f_srcBtn','f_source', OF_T.srcTitle)">
+                            <span>{{ t.pick }}</span>
+                            <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                     </div>
-                    <div>
-                        <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">👤 客人姓名 (Customer)</label>
-                        <input type="text" name="customer" class="w-full border border-stone-300 rounded-xl p-3 text-sm outline-none focus:border-stone-950 focus:ring-2 focus:ring-emerald-500/10">
+                    <div class="ef-field">
+                        <label class="ef-label">👤 {{ t.customer }}</label>
+                        <input type="text" name="customer" id="f_customer" required class="ef-input">
                     </div>
                 </div>
 
-                <div>
-                    <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">📍 送货地址 &amp; 电话 (Address &amp; Contact)</label>
-                    <input type="text" name="address" class="w-full border border-stone-300 rounded-xl p-3 text-sm outline-none focus:border-stone-950 focus:ring-2 focus:ring-emerald-500/10">
+                <div class="ef-field">
+                    <label class="ef-label">📅 {{ t.datetime }}</label>
+                    <input type="hidden" name="date" id="f_date" value="">
+                    <input type="hidden" name="time" id="f_time" value="">
+                    <button type="button" id="f_dtBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openDeliveryDateWheelPicker('f_dtBtn','f_date','f_time')">
+                        <span>{{ t.pick }}</span>
+                        <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                    </button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <div>
-                        <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">📅 送达日期时间 (Delivery Date &amp; Time)</label>
-                        <input type="hidden" name="date" id="dateHidden" value="">
-                        <input type="hidden" name="time" id="timeHidden" value="">
-                        <button type="button" id="deliveryTriggerBtn" class="wp-trigger wp-empty w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-left flex justify-between items-center bg-white" onclick="openDeliveryDateWheelPicker('deliveryTriggerBtn','dateHidden','timeHidden')">
-                            <!--<span class="text-stone-400">选择送达日期时间 Select Date &amp; Time</span>-->
-                            <svg class="w-4 h-4 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-                        </button>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="ef-field sm:col-span-2">
+                        <label class="ef-label">📍 {{ t.address }}</label>
+                        <input type="text" name="address" id="f_address" class="ef-input">
                     </div>
-                    <div>
-                        <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">🎀 包花员工 (Wrapped By)</label>
-                        <input type="text" name="wrapped_by" class="w-full border border-stone-300 rounded-xl p-3 text-sm outline-none focus:border-stone-950 focus:ring-2 focus:ring-emerald-500/10">
+                    <div class="ef-field">
+                        <label class="ef-label">🚚 {{ t.fee }}</label>
+                        <input type="number" name="delivery_fee" id="f_fee" min="0" inputmode="numeric" placeholder="MMK" class="ef-input">
                     </div>
-                    {% if show_payment %}
-                    <div>
-                        <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">💰 付款状态 (Payment)</label>
-                        <label class="w-full flex items-center gap-2 border border-stone-300 rounded-xl p-3 text-sm bg-stone-50/40 cursor-pointer h-[46px] focus-within:border-stone-950">
-                            <input type="checkbox" name="is_paid" id="isPaidCheckbox" onchange="togglePaymentDate('paymentDateWrap','paymentDateHidden','paymentDateTriggerBtn','isPaidCheckbox')" class="w-4 h-4 accent-emerald-600">
-                            <span class="text-stone-700 font-semibold">已付款 (Mark as Paid)</span>
-                        </label>
-                    </div>
-                    {% endif %}
                 </div>
 
                 {% if show_payment %}
-                <div id="paymentDateWrap" class="hidden">
-                    <label class="block font-bold tracking-wider text-stone-700 mb-1.5 uppercase text-xs">🗓️ 付款日期 (Payment Date)</label>
-                    <input type="hidden" name="payment_date" id="paymentDateHidden" value="">
-                    <button type="button" id="paymentDateTriggerBtn" class="wp-trigger wp-empty w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-left flex justify-between items-center bg-white" onclick="openDateWheelPicker('paymentDateTriggerBtn','paymentDateHidden')">
-                        <!--<span class="text-stone-400">选择付款日期 Select Payment Date</span>-->
-                        <svg class="w-4 h-4 text-stone-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-                    </button>
+                <div id="paymentBlock" class="ef-field space-y-2">
+                    <label class="ef-checkbox-row">
+                        <input type="checkbox" name="is_paid" id="isPaidCheckbox" onchange="togglePaymentDate('paymentDateWrap','paymentDateHidden','paymentDateTriggerBtn','isPaidCheckbox')" class="w-4 h-4 accent-emerald-600">
+                        <span>💰 {{ t.paid }}</span>
+                    </label>
+                    <div id="paymentDateWrap" class="hidden">
+                        <input type="hidden" name="payment_date" id="paymentDateHidden" value="">
+                        <button type="button" id="paymentDateTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openDateWheelPicker('paymentDateTriggerBtn','paymentDateHidden')">
+                            <span>{{ t.payPick }}</span>
+                            <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                        </button>
+                    </div>
                 </div>
                 {% endif %}
             </div>
 
-            <!-- Items Details -->
-            <div class="border-t border-stone-100 pt-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xs font-bold tracking-widest uppercase text-stone-500">花束清单明细 (Bouquet Items)</h3>
-                    <button type="button" onclick="addNewItemRow()" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold py-1.5 px-4 rounded-xl transition-all">
-                        ➕ 添加花束
-                    </button>
+            <!-- ===== Section 2: bouquets ===== -->
+            <div class="space-y-3 border-t border-stone-100 pt-6">
+                <div class="flex justify-between items-center gap-3">
+                    <h3 class="text-xs font-bold tracking-widest uppercase text-stone-600"><span class="of-step">2</span>{{ t.sec2 }}</h3>
+                    <button type="button" onclick="addOrderItemRow()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">{{ t.addBouquet }}</button>
                 </div>
 
-                <div id="itemsContainer" class="space-y-4">
-                    <div class="item-row grid grid-cols-1 md:grid-cols-12 gap-4 p-4 bg-stone-50/40 border border-stone-200 rounded-2xl relative">
-                        <div class="md:col-span-6">
-                            <label class="block text-stone-500 text-[11px] mb-1 font-semibold">花束名称 &amp; 详细描述 (Bouquet Name &amp; Details)</label>
-                            <textarea name="item_name[]" rows="2" placeholder="例：19朵红玫瑰花束，配尤加利叶与满天星" class="w-full border border-stone-300 rounded-lg p-2 text-xs bg-white outline-none focus:border-stone-950"></textarea>
+                {% if not readonly %}
+                <div>
+                    <button type="button" onclick="wmToggle()" class="w-full flex items-center justify-between bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-stone-700">
+                        <span>🎀 {{ t.manage }}</span>
+                        <svg id="wmChevron" class="w-4 h-4 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="wmPanel" class="hidden mt-2 border border-stone-200 rounded-xl p-3 bg-white space-y-3">
+                        <div class="flex gap-2">
+                            <input type="text" id="wmNew" placeholder="{{ t.wmPlaceholder }}" class="ef-input !py-2" onkeydown="if(event.key==='Enter'){event.preventDefault();wmAdd();}">
+                            <button type="button" onclick="wmAdd()" class="shrink-0 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold px-4 rounded-lg">{{ t.wmAdd }}</button>
                         </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-stone-500 text-[11px] mb-1 font-semibold">单品金额 (Price)</label>
-                            <input type="number" name="item_price[]" placeholder="MMK" class="w-full border border-stone-300 rounded-lg p-2 text-xs bg-white outline-none focus:border-stone-950">
-                        </div>
-                        <div class="md:col-span-4">
-                            <!--<label class="block text-stone-500 text-[11px] mb-1 font-semibold">定制备注文字 (Remarks)</label>-->
-                            <input type="text" name="remarks[]" placeholder="写字卡要求..." class="w-full border border-stone-300 rounded-lg p-2 text-xs bg-white outline-none focus:border-stone-950">
-                        </div>
+                        <div id="wmList" class="space-y-1.5"></div>
                     </div>
                 </div>
+                {% endif %}
+
+                <div id="itemsContainer" class="space-y-3"></div>
             </div>
 
-            <!-- Sticky Bottom Actions -->
-            <div class="flex justify-end pt-4 border-t border-stone-100 gap-3">
-                <button type="button" onclick="closeOrderModal()" class="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 text-stone-700 font-sans text-xs uppercase tracking-widest font-semibold py-3.5 px-8 rounded-xl transition-all">
-                    取消 (Cancel)
-                </button>
-                <button type="submit" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs uppercase tracking-widest font-semibold py-3.5 px-10 rounded-xl transition-all shadow-md">
-                    确认保存账单 (Save Order Voucher)
-                </button>
+            <div class="flex justify-end gap-3 pt-4 border-t border-stone-100 sticky bottom-0 bg-white pb-1">
+                <button type="button" onclick="closeOrderForm()" class="bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold uppercase tracking-widest py-3 px-6 rounded-xl">{{ t.cancel }}</button>
+                <button type="submit" id="orderSubmitBtn" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold uppercase tracking-widest py-3 px-8 rounded-xl shadow-md disabled:opacity-60">{{ t.save }}</button>
             </div>
         </form>
     </section>
 </div>
 
 <script>
-    function openOrderModal() {
-        const modal = document.getElementById('orderFormModal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.style.overflow = 'hidden';
+const OF_T = {{ t|tojson|safe }};
+const OF_STAFF = {{ 'true' if readonly else 'false' }};
+const OF_SHOW_PRICE = {{ 'true' if show_payment else 'false' }};
+let OF_WRAPPERS = {{ (wrappers or [])|tojson|safe }};
+let _ofEditingId = null;
+
+const ofEl = (id) => document.getElementById(id);
+function ofEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function ofSetBtn(btnId, text, empty) {
+    const b = ofEl(btnId);
+    b.querySelector('span').textContent = text;
+    b.classList.toggle('wp-empty', !!empty);
+}
+
+/* ---------- open / close ---------- */
+function openOrderForm(order) {
+    const edit = !!order;
+    _ofEditingId = edit ? order.id : null;
+    ofEl('orderForm').action = edit ? '/edit_order/' + order.id : '/add_order';
+    ofEl('orderFormTitle').textContent = edit ? OF_T.titleEdit : OF_T.titleAdd;
+    const sb = ofEl('orderSubmitBtn');
+    sb.disabled = false;
+    sb.textContent = edit ? OF_T.update : OF_T.save;
+
+    // source
+    const src = (edit && order.source && order.source !== '-') ? order.source : '';
+    ofEl('f_source').value = src;
+    ofSetBtn('f_srcBtn', src || OF_T.pick, !src);
+
+    // customer / address / fee
+    ofEl('f_customer').value = edit ? (order.customer || '') : '';
+    ofEl('f_address').value = edit && order.address && order.address !== '-' ? order.address : '';
+    ofEl('f_fee').value = edit && order.delivery_fee ? order.delivery_fee : '';
+
+    // date + time
+    const d = edit ? (order.date || '') : getOrderFormToday();
+    const tm = (edit && order.time && /^\d{1,2}:\d{2}$/.test(order.time)) ? order.time : '';
+    ofEl('f_date').value = d;
+    ofEl('f_time').value = tm;
+    if (edit && d) ofSetBtn('f_dtBtn', wpShortDayLabel(d) + ' · ' + (tm || '--:--'), false);
+    else ofSetBtn('f_dtBtn', OF_T.pick, true);
+
+    // payment (manager, add mode only)
+    const pay = ofEl('paymentBlock');
+    if (pay) {
+        pay.classList.toggle('hidden', edit);
+        ofEl('isPaidCheckbox').checked = false;
+        ofEl('paymentDateWrap').classList.add('hidden');
+        ofEl('paymentDateHidden').value = '';
+        ofSetBtn('paymentDateTriggerBtn', OF_T.payPick, true);
     }
 
-    function closeOrderModal() {
-        const modal = document.getElementById('orderFormModal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.style.overflow = '';
-    }
+    // bouquets
+    ofEl('itemsContainer').innerHTML = '';
+    if (edit && order.items && order.items.length) order.items.forEach(addOrderItemRow);
+    else addOrderItemRow();
 
-    document.getElementById('orderFormModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeOrderModal();
-        }
+    const m = ofEl('orderFormModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+}
+function openEditModal(order) { openOrderForm(order); }   // used by the edit button on each card
+
+function closeOrderForm() {
+    const m = ofEl('orderFormModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+    document.body.style.overflow = '';
+}
+ofEl('orderFormModal').addEventListener('click', e => { if (e.target === ofEl('orderFormModal')) closeOrderForm(); });
+
+function getOrderFormToday() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function orderFormSubmit() {
+    const named = [...document.querySelectorAll('#orderForm [name="item_name[]"]')].filter(t => t.value.trim());
+    if (!named.length) { alert(OF_T.needOne); return false; }
+    if (_ofEditingId) { try { sessionStorage.setItem('mc_restore_order_id', String(_ofEditingId)); } catch (e) {} }
+    const b = ofEl('orderSubmitBtn');
+    b.disabled = true;
+    b.textContent = OF_T.saving;
+    return true;
+}
+
+/* ---------- bouquet rows ---------- */
+function wrapperOptions(selected) {
+    let html = `<option value="">${ofEsc(OF_T.pick)}</option>`;
+    const known = OF_WRAPPERS.some(w => w.name === selected);
+    if (selected && !known) html += `<option value="${ofEsc(selected)}" selected>${ofEsc(selected)}</option>`;
+    OF_WRAPPERS.forEach(w => {
+        html += `<option value="${ofEsc(w.name)}" ${w.name === selected ? 'selected' : ''}>${ofEsc(w.name)}</option>`;
     });
+    return html;
+}
 
-    function handleFormSubmit(event) {
-        closeOrderModal();
+function addOrderItemRow(it) {
+    it = (it && typeof it === 'object') ? it : {};
+    const c = ofEl('itemsContainer');
+    const row = document.createElement('div');
+    row.className = 'item-row ef-item-card space-y-3';
+    const hasCake = !!it.has_cake;
+
+    const priceBlock = OF_SHOW_PRICE
+        ? `<div><label class="ef-item-label">${OF_T.price}</label>
+               <input type="number" name="item_price[]" min="0" inputmode="numeric" placeholder="MMK" value="${ofEsc(it.price || '')}" class="ef-input"></div>`
+        : `<input type="hidden" name="item_price[]" value="${ofEsc(it.price || 0)}">`;
+
+    row.innerHTML = `
+        <div class="flex justify-between items-center">
+            <span class="bq-title text-[11px] font-bold text-stone-400 uppercase tracking-widest"></span>
+            <button type="button" onclick="removeOrderItemRow(this)" class="text-rose-600 hover:text-rose-800 text-lg font-bold leading-none px-1">✕</button>
+        </div>
+
+        <div>
+            <label class="ef-item-label">💐 ${OF_T.name}</label>
+            <textarea name="item_name[]" rows="2" class="ef-input">${ofEsc(it.item_name || '')}</textarea>
+        </div>
+
+        <div class="grid ${OF_SHOW_PRICE ? 'grid-cols-2' : 'grid-cols-1'} gap-3">
+            <div>
+                <label class="ef-item-label">🎨 ${OF_T.paper}</label>
+                <input type="text" name="paper_color[]" value="${ofEsc(it.paper_color || '')}" class="ef-input">
+            </div>
+            ${priceBlock}
+        </div>
+
+        <div>
+            <label class="ef-item-label">📷 ${OF_T.photo}</label>
+            <input type="hidden" name="existing_photo[]" value="${ofEsc(it.photo_url || '')}">
+            <img class="of-photo ${it.photo_url ? '' : 'hidden'}" src="${ofEsc(it.photo_url || '')}" alt="">
+            <input type="file" name="item_photo[]" accept="image/*" onchange="ofPreview(this)" class="block w-full text-xs text-stone-600">
+        </div>
+
+        <div>
+            <label class="ef-item-label">🎀 ${OF_T.wrapper}</label>
+            <select name="item_wrapped_by[]" class="wrapper-select ef-input">${wrapperOptions(it.wrapped_by || '')}</select>
+        </div>
+
+        <div>
+            <label class="ef-item-label">📝 ${OF_T.remarks}</label>
+            <input type="text" name="remarks[]" value="${ofEsc(it.remarks || '')}" class="ef-input">
+        </div>
+
+        <div>
+            <label class="ef-item-label">🎂 ${OF_T.cake}</label>
+            <select name="has_cake[]" onchange="ofToggleCake(this)" class="ef-input">
+                <option value="0" ${hasCake ? '' : 'selected'}>${OF_T.cakeNo}</option>
+                <option value="1" ${hasCake ? 'selected' : ''}>${OF_T.cakeYes}</option>
+            </select>
+        </div>
+
+        <div class="cake-block ${hasCake ? '' : 'hidden'}">
+            <label class="ef-item-label">🎂 ${OF_T.cakePhoto}</label>
+            <input type="hidden" name="existing_cake_photo[]" value="${ofEsc(it.cake_photo_url || '')}">
+            <img class="of-photo ${it.cake_photo_url ? '' : 'hidden'}" src="${ofEsc(it.cake_photo_url || '')}" alt="">
+            <input type="file" name="cake_photo[]" accept="image/*" onchange="ofPreview(this)" class="block w-full text-xs text-stone-600">
+        </div>
+    `;
+    c.appendChild(row);
+    ofRenumber();
+}
+
+function removeOrderItemRow(btn) {
+    btn.closest('.item-row').remove();
+    ofRenumber();
+}
+function ofRenumber() {
+    document.querySelectorAll('#itemsContainer .bq-title').forEach((el, i) => { el.textContent = OF_T.bouquet + ' ' + (i + 1); });
+}
+function ofToggleCake(sel) {
+    sel.closest('.item-row').querySelector('.cake-block').classList.toggle('hidden', sel.value !== '1');
+}
+function ofPreview(input) {
+    const img = input.parentElement.querySelector('img.of-photo');
+    if (input.files && input.files[0]) {
+        img.src = URL.createObjectURL(input.files[0]);
+        img.classList.remove('hidden');
     }
+}
 
-    function getLocalISODate() {
-        const d = new Date();
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-
-    (function initDefaultDeliveryDate() {
-        const dateHidden = document.getElementById('dateHidden');
-        if (dateHidden && !dateHidden.value) {
-            dateHidden.value = getLocalISODate();
-        }
-    })();
-
-    function addNewItemRow() {
-        const container = document.getElementById('itemsContainer');
-        const newRow = document.createElement('div');
-        newRow.className = "item-row grid grid-cols-1 md:grid-cols-12 gap-4 p-4 bg-stone-50/40 border border-stone-200 rounded-2xl relative mt-3";
-        newRow.innerHTML = `
-            <div class="md:col-span-6">
-                <textarea name="item_name[]" rows="2" placeholder="花束名称 &amp; 详细描述" class="w-full border border-stone-300 rounded-lg p-2 text-xs bg-white outline-none focus:border-stone-950"></textarea>
-            </div>
-            <div class="md:col-span-2">
-                <input type="number" name="item_price[]" placeholder="金额 MMK" class="w-full border border-stone-300 rounded-lg p-2 text-xs bg-white outline-none focus:border-stone-950">
-            </div>
-            <div class="md:col-span-3">
-                <input type="text" name="remarks[]" placeholder="备注要求" class="w-full border border-stone-300 rounded-lg p-2 text-xs bg-white outline-none focus:border-stone-950">
-            </div>
-            <div class="md:col-span-1 flex items-start justify-end pt-1">
-                <button type="button" onclick="this.closest('.item-row').remove()" class="text-rose-400 hover:text-rose-600 text-xs font-bold px-1 transition-colors">✕</button>
-            </div>
-        `;
-        container.appendChild(newRow);
-    }
+/* ---------- wrapper management (manager only) ---------- */
+function ofRefreshWrapperSelects() {
+    document.querySelectorAll('.wrapper-select').forEach(s => { const cur = s.value; s.innerHTML = wrapperOptions(cur); s.value = cur; });
+}
+function wmToggle() {
+    const p = ofEl('wmPanel');
+    if (!p) return;
+    const open = p.classList.contains('hidden');
+    p.classList.toggle('hidden', !open);
+    ofEl('wmChevron').style.transform = open ? 'rotate(180deg)' : '';
+    if (open) wmRender();
+}
+function wmRender() {
+    const list = ofEl('wmList');
+    if (!list) return;
+    if (!OF_WRAPPERS.length) { list.innerHTML = `<p class="text-xs text-stone-400 italic">${ofEsc(OF_T.wmEmpty)}</p>`; return; }
+    list.innerHTML = OF_WRAPPERS.map(w => `
+        <div class="flex items-center justify-between bg-stone-50 border border-stone-100 rounded-lg px-3 py-2">
+            <span class="text-sm text-stone-800">${ofEsc(w.name)}</span>
+            <span class="flex gap-1">
+                <button type="button" onclick="wmEdit(${w.id})" class="text-xs px-2 py-1 rounded bg-white border border-stone-200 hover:bg-stone-100">✎</button>
+                <button type="button" onclick="wmDelete(${w.id})" class="text-xs px-2 py-1 rounded bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100">🗑</button>
+            </span>
+        </div>`).join('');
+}
+async function wmCall(method, url, body) {
+    const res = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok || !data.success) throw new Error(data.error || ('HTTP ' + res.status));
+    const r = await fetch('/api/wrappers', { credentials: 'same-origin' });
+    OF_WRAPPERS = (await r.json()).wrappers || [];
+    wmRender();
+    ofRefreshWrapperSelects();
+}
+async function wmAdd() {
+    const input = ofEl('wmNew');
+    const name = input.value.trim();
+    if (!name) return;
+    try { await wmCall('POST', '/api/wrappers', { name }); input.value = ''; } catch (e) { alert(e.message); }
+}
+async function wmEdit(id) {
+    const w = OF_WRAPPERS.find(x => x.id === id);
+    if (!w) return;
+    const name = prompt(OF_T.wmEditPrompt, w.name);
+    if (name === null || !name.trim() || name.trim() === w.name) return;
+    try { await wmCall('PUT', '/api/wrappers/' + id, { name: name.trim() }); } catch (e) { alert(e.message); }
+}
+async function wmDelete(id) {
+    if (!confirm(OF_T.wmDelConfirm)) return;
+    try { await wmCall('DELETE', '/api/wrappers/' + id); } catch (e) { alert(e.message); }
+}
 </script>
