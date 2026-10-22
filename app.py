@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from sqlalchemy.orm import joinedload
+from sqlalchemy import text
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -8,6 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 import csv
 import io
+import cloudinary
+import cloudinary.uploader
 
 app = Flask(__name__)
 
@@ -22,8 +25,11 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_REFRESH_EACH_REQUEST=True,
-    MAX_CONTENT_LENGTH=16 * 1024 * 1024
+    MAX_CONTENT_LENGTH=40 * 1024 * 1024  # several phone photos per order
 )
+
+# Cloudinary reads CLOUDINARY_URL (cloudinary://key:secret@cloud_name) from the environment.
+cloudinary.config(secure=True)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', '')
 
@@ -57,10 +63,10 @@ class Order(db.Model):
     total_price = db.Column(db.Integer, nullable=False, default=0)
     time = db.Column(db.String(50), default='-')
     address = db.Column(db.Text, default='-')
-    # Formerly "delivery_fee" in the cake-shop template — repurposed here to
-    # record which staff member wrapped/arranged the bouquet(s) for this
-    # order. Manager-facing label: 包花员工. Staff-facing label: ပန်းစည်းစည်းသူ.
+    # Legacy order-level wrapper. Wrapper is now chosen per bouquet (OrderItem.wrapped_by);
+    # this column is kept so old orders still display.
     wrapped_by = db.Column(db.Text, default='')
+    delivery_fee = db.Column(db.Integer, default=0)  # ကားခ / 车费
     is_paid = db.Column(db.Boolean, nullable=False, default=False)
     payment_date = db.Column(db.String(50), default='')
 
@@ -71,15 +77,70 @@ class Order(db.Model):
         lazy='selectin'
     )
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date,
+            'source': self.source,
+            'customer': self.customer,
+            'time': self.time,
+            'address': self.address,
+            'delivery_fee': self.delivery_fee or 0,
+            'items': [it.to_dict() for it in self.items],
+        }
+
 class OrderItem(db.Model):
     __tablename__ = 'order_items'
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
-    # No more photo uploads for this project, so item_name carries the full
-    # bouquet description instead of a short name + reference photo.
     item_name = db.Column(db.Text, default='Flower Bouquet')
     price = db.Column(db.Integer, default=0)
     remarks = db.Column(db.Text, default='-')
+    paper_color = db.Column(db.Text, default='')        # Paper အရောင် / 包装纸颜色
+    photo_url = db.Column(db.Text, default='')          # bouquet photo (Cloudinary)
+    wrapped_by = db.Column(db.Text, default='')         # ပန်းစည်းစည်းသူ / 包花员工 (name snapshot)
+    has_cake = db.Column(db.Boolean, default=False)     # ကိတ်ပါ မပါ
+    cake_photo_url = db.Column(db.Text, default='')     # cake photo (Cloudinary)
+
+    def to_dict(self):
+        return {
+            'item_name': self.item_name or '',
+            'price': self.price or 0,
+            'remarks': '' if self.remarks == '-' else (self.remarks or ''),
+            'paper_color': self.paper_color or '',
+            'photo_url': self.photo_url or '',
+            'wrapped_by': self.wrapped_by or '',
+            'has_cake': bool(self.has_cake),
+            'cake_photo_url': self.cake_photo_url or '',
+        }
+
+class Wrapper(db.Model):
+    """Staff who wrap bouquets. Managed by the manager (add / edit / delete)."""
+    __tablename__ = 'wrappers'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+
+def ensure_schema():
+    """Creates the wrappers table and adds the new columns on existing databases.
+    Safe to run on every startup (IF NOT EXISTS)."""
+    statements = [
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee INTEGER DEFAULT 0",
+        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS paper_color TEXT DEFAULT ''",
+        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT ''",
+        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS wrapped_by TEXT DEFAULT ''",
+        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS has_cake BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS cake_photo_url TEXT DEFAULT ''",
+    ]
+    try:
+        with app.app_context():
+            db.create_all()
+            with db.engine.begin() as conn:
+                for stmt in statements:
+                    conn.execute(text(stmt))
+    except Exception as e:
+        print("ENSURE SCHEMA ERROR:", e)
+
+ensure_schema()
 
 # ==========================================
 # AUTHENTICATION DECORATORS
@@ -274,6 +335,14 @@ def _parse_price_range():
     applied_max = max_price if max_price < PRICE_FILTER_MAX else None
     return min_price, max_price, applied_min, applied_max
 
+def _wrapper_list():
+    try:
+        return [{'id': w.id, 'name': w.name} for w in Wrapper.query.order_by(Wrapper.name).all()]
+    except Exception as e:
+        db.session.rollback()
+        print("WRAPPER LIST ERROR:", e)
+        return []
+
 def _daily_view_context(filter_action, default_view='day'):
     view_mode, filter_value, selected_day, selected_month, selected_year = _parse_daily_filters(default_view)
     selected_source = (request.args.get('source') or '').strip()
@@ -301,6 +370,7 @@ def _daily_view_context(filter_action, default_view='day'):
         'filter_action': filter_action,
         'total_orders': total_orders,
         'total_revenue': total_revenue,
+        'wrappers': _wrapper_list(),
     }
 
 def _serialize_order_for_export(o):
@@ -312,6 +382,7 @@ def _serialize_order_for_export(o):
         'time': o.time,
         'address': o.address,
         'wrapped_by': o.wrapped_by or '',
+        'delivery_fee': o.delivery_fee or 0,
         'total_price': o.total_price,
         'is_paid': bool(o.is_paid),
         'payment_date': o.payment_date or '',
@@ -320,10 +391,98 @@ def _serialize_order_for_export(o):
                 'item_name': it.item_name,
                 'price': it.price,
                 'remarks': it.remarks,
+                'paper_color': it.paper_color or '',
+                'wrapped_by': it.wrapped_by or '',
+                'has_cake': bool(it.has_cake),
             }
             for it in o.items
         ],
     }
+
+# ---------- order form helpers (add + edit share these) ----------
+def _to_int(value, default=0):
+    try:
+        if value in (None, ''):
+            return default
+        return int(str(value).replace(',', '').strip())
+    except (ValueError, TypeError):
+        return default
+
+def _upload_image(file_storage):
+    """Uploads one image to Cloudinary and returns its https URL (or None)."""
+    if not file_storage or not file_storage.filename:
+        return None
+    try:
+        result = cloudinary.uploader.upload(
+            file_storage.stream, folder="iris_flower", resource_type="image"
+        )
+        return result.get('secure_url')
+    except Exception as e:
+        print("CLOUDINARY UPLOAD ERROR:", e)
+        return None
+
+def _apply_items(order):
+    """Reads the bouquet sub-forms from request.form / request.files, replaces
+    order.items with them and returns (items_total, failed_upload_count).
+    Rows are matched by index; existing_* hidden fields keep old photos on edit."""
+    form, files = request.form, request.files
+
+    names = form.getlist('item_name[]')
+    colors = form.getlist('paper_color[]')
+    prices = form.getlist('item_price[]')
+    wrappers = form.getlist('item_wrapped_by[]')
+    remarks = form.getlist('remarks[]')
+    cakes = form.getlist('has_cake[]')
+    old_photos = form.getlist('existing_photo[]')
+    old_cake_photos = form.getlist('existing_cake_photo[]')
+    photos = files.getlist('item_photo[]')
+    cake_photos = files.getlist('cake_photo[]')
+
+    def at(lst, i, default=''):
+        return lst[i] if i < len(lst) else default
+
+    new_items, total, failed = [], 0, 0
+    for i, name in enumerate(names):
+        if not (name or '').strip():
+            continue
+
+        price = _to_int(at(prices, i))
+        total += price
+
+        photo_url = at(old_photos, i)
+        new_photo = at(photos, i, None)
+        if new_photo and new_photo.filename:
+            uploaded = _upload_image(new_photo)
+            if uploaded:
+                photo_url = uploaded
+            else:
+                failed += 1
+
+        has_cake = at(cakes, i, '0') == '1'
+        cake_photo_url = ''
+        if has_cake:
+            cake_photo_url = at(old_cake_photos, i)
+            new_cake = at(cake_photos, i, None)
+            if new_cake and new_cake.filename:
+                uploaded = _upload_image(new_cake)
+                if uploaded:
+                    cake_photo_url = uploaded
+                else:
+                    failed += 1
+
+        new_items.append(OrderItem(
+            item_name=name.strip(),
+            price=price,
+            remarks=(at(remarks, i) or '').strip() or '-',
+            paper_color=(at(colors, i) or '').strip(),
+            photo_url=photo_url or '',
+            wrapped_by=(at(wrappers, i) or '').strip(),
+            has_cake=has_cake,
+            cake_photo_url=cake_photo_url or '',
+        ))
+
+    order.items = new_items
+    return total, failed
 
 # ==========================================
 # MAIN ROUTES
@@ -420,48 +579,36 @@ def add_order():
         is_paid = False
         payment_date = ''
 
-    order_date = request.form.get('date')
-    source = request.form.get('source') or '-'
-    customer = request.form.get('customer')
-    time = request.form.get('time') or '-'
-    address = request.form.get('address') or '-'
-    wrapped_by = request.form.get('wrapped_by') or ''
-
-    item_names = request.form.getlist('item_name[]')
-    prices = request.form.getlist('item_price[]')
-    remarks_list = request.form.getlist('remarks[]')
-
     new_order = Order(
-        date=order_date, source=source, customer=customer, total_price=0, time=time, address=address,
-        wrapped_by=wrapped_by, is_paid=is_paid, payment_date=payment_date
+        date=request.form.get('date') or get_myanmar_now().strftime('%Y-%m-%d'),
+        source=request.form.get('source') or '-',
+        customer=(request.form.get('customer') or '').strip() or '-',
+        total_price=0,
+        time=request.form.get('time') or '-',
+        address=(request.form.get('address') or '').strip() or '-',
+        wrapped_by='',
+        delivery_fee=_to_int(request.form.get('delivery_fee')),
+        is_paid=is_paid,
+        payment_date=payment_date,
     )
-    db.session.add(new_order)
-    db.session.flush()
 
-    calculated_total = 0
-    for i in range(len(item_names)):
-        if not (item_names[i] or '').strip():
-            continue
-        try:
-            item_price = int(prices[i]) if i < len(prices) and prices[i] not in (None, '') else 0
-        except (ValueError, TypeError):
-            item_price = 0
-        calculated_total += item_price
+    try:
+        items_total, failed = _apply_items(new_order)
+        # Delivery fee (ကားခ) is stored separately and NOT added to total_price,
+        # so revenue reports stay unchanged. To include it: items_total + new_order.delivery_fee
+        new_order.total_price = items_total
+        db.session.add(new_order)
+        db.session.commit()
+        if failed:
+            flash("Order saved, but some photos failed to upload. Please edit the order and re-add them.", 'error')
+    except Exception as e:
+        db.session.rollback()
+        print("ADD ORDER ERROR:", e)
+        flash("Failed to save order. Please try again.", 'error')
+    finally:
+        db.session.remove()
 
-        sub_item = OrderItem(
-            order_id=new_order.id,
-            item_name=item_names[i] or 'Flower Bouquet',
-            price=item_price,
-            remarks=remarks_list[i] if i < len(remarks_list) else '-',
-        )
-        db.session.add(sub_item)
-
-    new_order.total_price = calculated_total
-    db.session.commit()
-    db.session.remove()
-    if session.get('role') == 'staff':
-        return redirect(url_for('staff_view'))
-    return redirect(url_for('index'))
+    return _role_home_redirect()
 
 @app.route('/delete_order/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -483,49 +630,94 @@ def delete_order(id):
 @login_required
 def edit_order(order_id):
     order = Order.query.get_or_404(order_id)
-    order.date = request.form.get('date')
+    order.date = request.form.get('date') or order.date
     order.source = request.form.get('source') or '-'
-    order.customer = request.form.get('customer')
+    order.customer = (request.form.get('customer') or '').strip() or '-'
     order.time = request.form.get('time') or '-'
-    order.address = request.form.get('address') or '-'
-    order.wrapped_by = request.form.get('wrapped_by') or ''
-
-    names = request.form.getlist('edit_item_name[]')
-    prices = request.form.getlist('edit_price[]')
-    remarks = request.form.getlist('edit_remarks[]')
+    order.address = (request.form.get('address') or '').strip() or '-'
+    order.delivery_fee = _to_int(request.form.get('delivery_fee'))
 
     try:
-        OrderItem.query.filter_by(order_id=order.id).delete()
-        total_price = 0
-
-        for i in range(len(names)):
-            if not names[i].strip():
-                continue
-            try:
-                price = int(prices[i]) if i < len(prices) and prices[i] not in (None, '') else 0
-            except (ValueError, TypeError):
-                price = 0
-            total_price += price
-
-            new_item = OrderItem(
-                order_id=order.id,
-                item_name=names[i],
-                price=price,
-                remarks=remarks[i] if i < len(remarks) else '-',
-            )
-            db.session.add(new_item)
-
-        order.total_price = total_price
+        items_total, failed = _apply_items(order)
+        order.total_price = items_total
         db.session.commit()
-        flash('Order updated successfully.')
+        if failed:
+            flash("Order updated, but some photos failed to upload. Please try again.", 'error')
+        else:
+            flash('Order updated successfully.')
     except Exception as e:
         db.session.rollback()
         print("EDIT ERROR:", e)
-        flash("Failed to update order. Please try again.")
+        flash("Failed to update order. Please try again.", 'error')
     finally:
         db.session.remove()
 
     return _role_home_redirect()
+
+# ==========================================
+# WRAPPER (ပန်းစည်းစည်းသူ / 包花员工) MANAGEMENT
+# ==========================================
+@app.route('/api/wrappers', methods=['GET'])
+@login_required
+def wrappers_list():
+    data = _wrapper_list()
+    db.session.remove()
+    return jsonify({'success': True, 'wrappers': data})
+
+@app.route('/api/wrappers', methods=['POST'])
+@manager_required
+def wrappers_add():
+    name = ((request.get_json(silent=True) or {}).get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': 'Name is required'}), 400
+    try:
+        if Wrapper.query.filter(db.func.lower(Wrapper.name) == name.lower()).first():
+            return jsonify({'success': False, 'error': 'Already exists'}), 409
+        db.session.add(Wrapper(name=name))
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print("WRAPPER ADD ERROR:", e)
+        return jsonify({'success': False, 'error': 'Save failed'}), 500
+    finally:
+        db.session.remove()
+
+@app.route('/api/wrappers/<int:wrapper_id>', methods=['PUT'])
+@manager_required
+def wrappers_edit(wrapper_id):
+    name = ((request.get_json(silent=True) or {}).get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': 'Name is required'}), 400
+    try:
+        w = Wrapper.query.get_or_404(wrapper_id)
+        clash = Wrapper.query.filter(db.func.lower(Wrapper.name) == name.lower(), Wrapper.id != wrapper_id).first()
+        if clash:
+            return jsonify({'success': False, 'error': 'Already exists'}), 409
+        w.name = name
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print("WRAPPER EDIT ERROR:", e)
+        return jsonify({'success': False, 'error': 'Save failed'}), 500
+    finally:
+        db.session.remove()
+
+@app.route('/api/wrappers/<int:wrapper_id>', methods=['DELETE'])
+@manager_required
+def wrappers_delete(wrapper_id):
+    try:
+        w = Wrapper.query.get_or_404(wrapper_id)
+        db.session.delete(w)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print("WRAPPER DELETE ERROR:", e)
+        return jsonify({'success': False, 'error': 'Delete failed'}), 500
+    finally:
+        db.session.remove()
 
 # ==========================================
 # REPORTING
@@ -777,21 +969,8 @@ def monthly_export():
 @app.route('/run-migration')
 @manager_required
 def run_migration():
-    results = []
-    with db.engine.connect() as conn:
-        from sqlalchemy import text
-        for col, col_type, default in [
-            ('wrapped_by', 'TEXT', "''"),
-            ('is_paid', 'BOOLEAN', 'FALSE'),
-            ('payment_date', 'TEXT', "''"),
-        ]:
-            try:
-                conn.execute(text(f"ALTER TABLE orders ADD COLUMN {col} {col_type} DEFAULT {default}"))
-                conn.commit()
-                results.append(f"Added column: orders.{col}")
-            except Exception as e:
-                results.append(f"{col}: {str(e).split('ERROR:')[-1].strip()}")
-    return "<br>".join(results) + "<br><br><a href='/'>Back to app</a>"
+    ensure_schema()
+    return "Schema check complete (new columns + wrappers table).<br><br><a href='/'>Back to app</a>"
 
 @app.route('/toggle_payment/<int:order_id>', methods=['POST'])
 @manager_required
@@ -840,19 +1019,20 @@ def archive_export():
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        'order_id', 'date', 'source', 'customer', 'time', 'address', 'wrapped_by',
+        'order_id', 'date', 'source', 'customer', 'time', 'address', 'delivery_fee',
         'is_paid', 'payment_date', 'order_total',
-        'item_name', 'item_price', 'remarks'
+        'item_name', 'item_price', 'paper_color', 'wrapped_by', 'has_cake', 'photo_url', 'cake_photo_url', 'remarks'
     ])
     for o in orders:
         if not o.items:
-            writer.writerow([o.id, o.date, o.source, o.customer, o.time, o.address, o.wrapped_by,
-                              o.is_paid, o.payment_date, o.total_price, '', '', ''])
+            writer.writerow([o.id, o.date, o.source, o.customer, o.time, o.address, o.delivery_fee,
+                              o.is_paid, o.payment_date, o.total_price, '', '', '', o.wrapped_by, '', '', '', ''])
         for item in o.items:
             writer.writerow([
-                o.id, o.date, o.source, o.customer, o.time, o.address, o.wrapped_by,
+                o.id, o.date, o.source, o.customer, o.time, o.address, o.delivery_fee,
                 o.is_paid, o.payment_date, o.total_price,
-                item.item_name, item.price, item.remarks
+                item.item_name, item.price, item.paper_color, item.wrapped_by or o.wrapped_by,
+                item.has_cake, item.photo_url, item.cake_photo_url, item.remarks
             ])
 
     mem = io.BytesIO(('\ufeff' + buf.getvalue()).encode('utf-8'))
@@ -892,6 +1072,7 @@ def spreadsheet():
     return render_template("spreadsheet.html", rows=rows)
 
 @app.route("/api/update-cell", methods=["POST"])
+@manager_required
 def update_cell():
     data = request.json
 
@@ -900,18 +1081,22 @@ def update_cell():
     field = data["field"]
     value = data["value"]
 
-    if table == "order":
-        obj = Order.query.get(id)
-    elif table == "item":
-        obj = OrderItem.query.get(id)
-    else:
-        return {"success": False, "message": "Invalid table"}
+    # Whitelist editable fields so this endpoint can't touch ids/relations.
+    allowed = {
+        "order": {"date", "source", "customer", "time", "address", "wrapped_by", "is_paid", "delivery_fee"},
+        "item": {"item_name", "price", "remarks", "paper_color", "wrapped_by"},
+    }
+    if table not in allowed or field not in allowed[table]:
+        return {"success": False, "message": "Invalid field"}, 400
 
+    obj = Order.query.get(id) if table == "order" else OrderItem.query.get(id)
     if not obj:
-        return {"success": False, "message": "Not found"}
+        return {"success": False, "message": "Not found"}, 404
 
     if field == "is_paid":
         value = True if value == "1" else False
+    elif field in ("price", "delivery_fee"):
+        value = _to_int(value)
 
     setattr(obj, field, value)
     db.session.commit()
