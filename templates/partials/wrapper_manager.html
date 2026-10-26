@@ -1,0 +1,116 @@
+{# Manager-only: standalone wrapper (包花员工) manager. Same structure as the source picker. #}
+<div class="wp-overlay" id="wmOverlay" onclick="if(event.target===this) wmClose()">
+    <div class="wp-sheet">
+        <div class="wp-title">包花员工管理 (Manage Wrappers)</div>
+
+        <div class="flex gap-2 mb-3">
+            <input type="text" id="wmNew" placeholder="新员工姓名 (New name)" class="ef-input"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();wmAdd();}">
+            <button type="button" class="wp-btn wp-btn-set" style="flex:none;padding:12px 18px;" onclick="wmAdd()">添加 Add</button>
+        </div>
+        <div id="wmError" class="hidden text-xs text-rose-600 font-semibold mb-2"></div>
+
+        <div class="wp-source-list" id="wmList"></div>
+
+        <div class="wp-actions">
+            <button type="button" class="wp-btn wp-btn-cancel" onclick="wmClose()">关闭 Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let wmEditingId = null, wmDeletingId = null;
+
+function wmEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function wmShowError(msg) {
+    const el = document.getElementById('wmError');
+    el.textContent = msg || '';
+    el.classList.toggle('hidden', !msg);
+}
+function wmOpen() {
+    wmEditingId = null; wmDeletingId = null;
+    wmShowError('');
+    wmRender();
+    document.getElementById('wmOverlay').classList.add('active');
+    wpLockBody();
+}
+function wmClose() { closeWheelOverlay('wmOverlay'); }
+
+function wmRender() {
+    const list = document.getElementById('wmList');
+    if (!OF_WRAPPERS.length) {
+        list.innerHTML = '<p class="text-xs text-stone-400 italic py-3 text-center">还没有员工，请先添加。</p>';
+        return;
+    }
+    list.innerHTML = OF_WRAPPERS.map(w => {
+        const btn = 'text-xs font-bold px-2.5 py-1.5 rounded-lg border';
+        if (wmEditingId === w.id) {
+            return `<div class="wp-source-item wp-source-selected">
+                <input id="wmEditInput" type="text" value="${wmEsc(w.name)}" class="ef-input !py-1.5 !text-sm"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();wmSaveEdit(${w.id});}if(event.key==='Escape'){wmCancel();}">
+                <span class="flex gap-1.5 shrink-0 ml-2">
+                    <button type="button" onclick="wmSaveEdit(${w.id})" class="${btn} bg-white border-stone-300 text-stone-800">✓</button>
+                    <button type="button" onclick="wmCancel()" class="${btn} bg-white border-stone-300 text-stone-500">✕</button>
+                </span></div>`;
+        }
+        if (wmDeletingId === w.id) {
+            return `<div class="wp-source-item" style="border-color:#fecdd3;background:#fff1f2;">
+                <span class="text-rose-700">删除 ${wmEsc(w.name)}？</span>
+                <span class="flex gap-1.5 shrink-0 ml-2">
+                    <button type="button" onclick="wmConfirmDelete(${w.id})" class="${btn} bg-rose-600 border-rose-600 text-white">删除</button>
+                    <button type="button" onclick="wmCancel()" class="${btn} bg-white border-stone-300 text-stone-500">取消</button>
+                </span></div>`;
+        }
+        return `<div class="wp-source-item">
+            <span>${wmEsc(w.name)}</span>
+            <span class="flex gap-1.5 shrink-0 ml-2">
+                <button type="button" onclick="wmStartEdit(${w.id})" class="${btn} bg-white border-stone-200 text-stone-700">✎</button>
+                <button type="button" onclick="wmStartDelete(${w.id})" class="${btn} bg-rose-50 border-rose-100 text-rose-600">🗑</button>
+            </span></div>`;
+    }).join('');
+    const inp = document.getElementById('wmEditInput');
+    if (inp) { inp.focus(); inp.select(); }
+}
+
+function wmStartEdit(id)   { wmEditingId = id; wmDeletingId = null; wmShowError(''); wmRender(); }
+function wmStartDelete(id) { wmDeletingId = id; wmEditingId = null; wmShowError(''); wmRender(); }
+function wmCancel()        { wmEditingId = null; wmDeletingId = null; wmRender(); }
+
+async function wmCall(method, url, body) {
+    const res = await fetch(url, {
+        method, credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok || !data.success) {
+        throw new Error(data.error === 'Already exists' ? '这个名字已经存在。' : (data.error || ('HTTP ' + res.status)));
+    }
+    const r = await fetch('/api/wrappers', { credentials: 'same-origin' });
+    OF_WRAPPERS = (await r.json()).wrappers || [];
+    wmEditingId = null; wmDeletingId = null;
+    wmRender();
+    if (typeof ofRefreshWrapperSelects === 'function') ofRefreshWrapperSelects();   // update dropdowns in the order form
+}
+async function wmAdd() {
+    const input = document.getElementById('wmNew');
+    const name = input.value.trim();
+    if (!name) return;
+    try { wmShowError(''); await wmCall('POST', '/api/wrappers', { name }); input.value = ''; }
+    catch (e) { wmShowError(e.message); }
+}
+async function wmSaveEdit(id) {
+    const name = document.getElementById('wmEditInput').value.trim();
+    const w = OF_WRAPPERS.find(x => x.id === id);
+    if (!name || (w && name === w.name)) { wmCancel(); return; }
+    try { wmShowError(''); await wmCall('PUT', '/api/wrappers/' + id, { name }); }
+    catch (e) { wmShowError(e.message); }
+}
+async function wmConfirmDelete(id) {
+    try { wmShowError(''); await wmCall('DELETE', '/api/wrappers/' + id); }
+    catch (e) { wmShowError(e.message); }
+}
+</script>
