@@ -1,18 +1,21 @@
 {# Unified order form (add + edit) for manager (Chinese) and staff (Burmese).
-   Needs: readonly (True = staff), show_payment (manager only), wrappers (list of {id,name}). #}
+   Needs: readonly (True = staff), show_payment (manager only), wrappers (list of {id,name}).
+   Wrapper list is managed from the standalone sheet (partials/wrapper_manager.html).
+   Paid/unpaid is ticked on the order card, not in this form. #}
 
 {% if readonly %}
 {% set t = {
-  'titleAdd': 'အော်ဒါအသစ် ထည့်ရန်', 'titleEdit': 'အော်ဒါ ပြင်ဆင်ရန်',
-  'sec1': 'အော်ဒါအချက်အလက်', 'sec2': 'ပန်းစည်းအသေးစိတ်',
-  'src': 'အော်ဒါလာသည့်နေရာ', 'srcTitle': 'အော်ဒါလာသည့်နေရာ ရွေးပါ (Select Source)',
-  'customer': 'ဖောက်သည်အမည်', 'datetime': 'ပေးပို့မည့် ရက်စွဲ & အချိန်',
+  'titleAdd': 'အော်ဒါအသစ်', 'titleEdit': 'အော်ဒါ ပြင်ရန်',
+  'sec1': 'အော်ဒါအချက်အလက်', 'sec2': 'ပန်းစည်းများ',
+  'src': 'အော်ဒါလာသည့်နေရာ', 'srcTitle': 'နေရာ ရွေးပါ',
+  'customer': 'ဖောက်သည်အမည်', 'datetime': 'ရက်စွဲ & အချိန်',
   'pick': 'ရွေးပါ', 'address': 'နေရပ်', 'fee': 'ကားခ',
   'addBouquet': '➕ ပန်းစည်းထည့်ရန်', 'bouquet': 'ပန်းစည်း',
   'name': 'ပန်းစည်းအမည်', 'paper': 'Paper အရောင်', 'price': 'စျေးနှုန်း',
-  'photo': 'ဓာတ်ပုံ', 'wrapper': 'ပန်းစည်းစည်းသူ', 'remarks': 'မှတ်ချက်',
+  'photo': 'ဓာတ်ပုံ', 'wrapper': 'ပန်းစည်းစည်းသူ', 'wrapperTitle': 'ပန်းစည်းစည်းသူ', 'wrapperNone': '—',
+  'remarks': 'မှတ်ချက်',
   'cake': 'ကိတ်ပါ မပါ', 'cakeYes': 'ကိတ်ပါ', 'cakeNo': 'ကိတ်မပါ', 'cakePhoto': 'ကိတ်ဓာတ်ပုံ',
-  'save': 'သိမ်းဆည်းမည်', 'update': 'မွမ်းမံမည်', 'cancel': 'ပယ်ဖျက်', 'saving': 'သိမ်းနေသည်…',
+  'save': 'သိမ်းမည်', 'update': 'မွမ်းမံမည်', 'cancel': 'ပယ်ဖျက်', 'saving': 'သိမ်းနေသည်…',
   'needOne': 'ပန်းစည်းအမည် အနည်းဆုံး တစ်ခု ထည့်ပါ။'
 } %}
 {% else %}
@@ -24,13 +27,11 @@
   'pick': '请选择', 'address': '地址 (နေရပ်)', 'fee': '车费 (ကားခ)',
   'addBouquet': '➕ 添加花束', 'bouquet': '花束',
   'name': '花束名称', 'paper': '包装纸颜色', 'price': '金额',
-  'photo': '照片', 'wrapper': '包花员工', 'remarks': '备注',
+  'photo': '照片', 'wrapper': '包花员工', 'wrapperTitle': '包花员工选择 (Select Wrapper)', 'wrapperNone': '不选',
+  'remarks': '备注',
   'cake': '是否有蛋糕', 'cakeYes': '有蛋糕', 'cakeNo': '无蛋糕', 'cakePhoto': '蛋糕照片',
   'save': '保存订单', 'update': '保存修改', 'cancel': '取消', 'saving': '保存中…',
-  'needOne': '请至少填写一个花束名称。',
-  'manage': '管理包花员工', 'wmAdd': '添加', 'wmPlaceholder': '新员工姓名',
-  'wmEmpty': '还没有员工，请先添加。', 'wmEditPrompt': '修改姓名：', 'wmDelConfirm': '确定删除这位员工吗？',
-  'paid': '已付款 (Mark as Paid)', 'payDate': '付款日期', 'payPick': '选择付款日期'
+  'needOne': '请至少填写一个花束名称。'
 } %}
 {% endif %}
 
@@ -98,22 +99,6 @@
                         <input type="number" name="delivery_fee" id="f_fee" min="0" inputmode="numeric" placeholder="MMK" class="ef-input">
                     </div>
                 </div>
-
-                {% if show_payment %}
-                <div id="paymentBlock" class="ef-field space-y-2">
-                    <label class="ef-checkbox-row">
-                        <input type="checkbox" name="is_paid" id="isPaidCheckbox" onchange="togglePaymentDate('paymentDateWrap','paymentDateHidden','paymentDateTriggerBtn','isPaidCheckbox')" class="w-4 h-4 accent-emerald-600">
-                        <span>💰 {{ t.paid }}</span>
-                    </label>
-                    <div id="paymentDateWrap" class="hidden">
-                        <input type="hidden" name="payment_date" id="paymentDateHidden" value="">
-                        <button type="button" id="paymentDateTriggerBtn" class="wp-trigger wp-empty text-xs p-3" onclick="openDateWheelPicker('paymentDateTriggerBtn','paymentDateHidden')">
-                            <span>{{ t.payPick }}</span>
-                            <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-                        </button>
-                    </div>
-                </div>
-                {% endif %}
             </div>
 
             <!-- ===== Section 2: bouquets ===== -->
@@ -122,22 +107,6 @@
                     <h3 class="text-xs font-bold tracking-widest uppercase text-stone-600"><span class="of-step">2</span>{{ t.sec2 }}</h3>
                     <button type="button" onclick="addOrderItemRow()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors">{{ t.addBouquet }}</button>
                 </div>
-
-                {% if not readonly %}
-                <div>
-                    <button type="button" onclick="wmToggle()" class="w-full flex items-center justify-between bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-stone-700">
-                        <span>🎀 {{ t.manage }}</span>
-                        <svg id="wmChevron" class="w-4 h-4 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <div id="wmPanel" class="hidden mt-2 border border-stone-200 rounded-xl p-3 bg-white space-y-3">
-                        <div class="flex gap-2">
-                            <input type="text" id="wmNew" placeholder="{{ t.wmPlaceholder }}" class="ef-input !py-2" onkeydown="if(event.key==='Enter'){event.preventDefault();wmAdd();}">
-                            <button type="button" onclick="wmAdd()" class="shrink-0 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold px-4 rounded-lg">{{ t.wmAdd }}</button>
-                        </div>
-                        <div id="wmList" class="space-y-1.5"></div>
-                    </div>
-                </div>
-                {% endif %}
 
                 <div id="itemsContainer" class="space-y-3"></div>
             </div>
@@ -195,16 +164,6 @@ function openOrderForm(order) {
     if (edit && d) ofSetBtn('f_dtBtn', wpShortDayLabel(d) + ' · ' + (tm || '--:--'), false);
     else ofSetBtn('f_dtBtn', OF_T.pick, true);
 
-    // payment (manager, add mode only)
-    const pay = ofEl('paymentBlock');
-    if (pay) {
-        pay.classList.toggle('hidden', edit);
-        ofEl('isPaidCheckbox').checked = false;
-        ofEl('paymentDateWrap').classList.add('hidden');
-        ofEl('paymentDateHidden').value = '';
-        ofSetBtn('paymentDateTriggerBtn', OF_T.payPick, true);
-    }
-
     // bouquets
     ofEl('itemsContainer').innerHTML = '';
     if (edit && order.items && order.items.length) order.items.forEach(addOrderItemRow);
@@ -240,17 +199,24 @@ function orderFormSubmit() {
     return true;
 }
 
-/* ---------- bouquet rows ---------- */
-function wrapperOptions(selected) {
-    let html = `<option value="">${ofEsc(OF_T.pick)}</option>`;
-    const known = OF_WRAPPERS.some(w => w.name === selected);
-    if (selected && !known) html += `<option value="${ofEsc(selected)}" selected>${ofEsc(selected)}</option>`;
-    OF_WRAPPERS.forEach(w => {
-        html += `<option value="${ofEsc(w.name)}" ${w.name === selected ? 'selected' : ''}>${ofEsc(w.name)}</option>`;
+/* ---------- wrapper picker (same sheet/CSS as the source picker) ---------- */
+function openWrapperPicker(btn) {
+    const hidden = btn.parentElement.querySelector('input.wrapper-value');
+    const names = OF_WRAPPERS.map(w => w.name);
+    if (hidden.value && !names.includes(hidden.value)) names.unshift(hidden.value);   // keep old / renamed names selectable
+    openListPicker({
+        title: OF_T.wrapperTitle,
+        options: [{ label: OF_T.wrapperNone, value: '' }, ...names.map(n => ({ label: n, value: n }))],
+        selected: hidden.value,
+        onPick: (v) => {
+            hidden.value = v;
+            btn.querySelector('span').textContent = v || OF_T.pick;
+            btn.classList.toggle('wp-empty', !v);
+        }
     });
-    return html;
 }
 
+/* ---------- bouquet rows ---------- */
 function addOrderItemRow(it) {
     it = (it && typeof it === 'object') ? it : {};
     const c = ofEl('itemsContainer');
@@ -291,7 +257,11 @@ function addOrderItemRow(it) {
 
         <div>
             <label class="ef-item-label">🎀 ${OF_T.wrapper}</label>
-            <select name="item_wrapped_by[]" class="wrapper-select ef-input">${wrapperOptions(it.wrapped_by || '')}</select>
+            <input type="hidden" name="item_wrapped_by[]" class="wrapper-value" value="${ofEsc(it.wrapped_by || '')}">
+            <button type="button" class="wp-trigger ${it.wrapped_by ? '' : 'wp-empty'} text-xs p-3" onclick="openWrapperPicker(this)">
+                <span>${ofEsc(it.wrapped_by || OF_T.pick)}</span>
+                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
         </div>
 
         <div>
@@ -334,58 +304,5 @@ function ofPreview(input) {
         img.src = URL.createObjectURL(input.files[0]);
         img.classList.remove('hidden');
     }
-}
-
-/* ---------- wrapper management (manager only) ---------- */
-function ofRefreshWrapperSelects() {
-    document.querySelectorAll('.wrapper-select').forEach(s => { const cur = s.value; s.innerHTML = wrapperOptions(cur); s.value = cur; });
-}
-function wmToggle() {
-    const p = ofEl('wmPanel');
-    if (!p) return;
-    const open = p.classList.contains('hidden');
-    p.classList.toggle('hidden', !open);
-    ofEl('wmChevron').style.transform = open ? 'rotate(180deg)' : '';
-    if (open) wmRender();
-}
-function wmRender() {
-    const list = ofEl('wmList');
-    if (!list) return;
-    if (!OF_WRAPPERS.length) { list.innerHTML = `<p class="text-xs text-stone-400 italic">${ofEsc(OF_T.wmEmpty)}</p>`; return; }
-    list.innerHTML = OF_WRAPPERS.map(w => `
-        <div class="flex items-center justify-between bg-stone-50 border border-stone-100 rounded-lg px-3 py-2">
-            <span class="text-sm text-stone-800">${ofEsc(w.name)}</span>
-            <span class="flex gap-1">
-                <button type="button" onclick="wmEdit(${w.id})" class="text-xs px-2 py-1 rounded bg-white border border-stone-200 hover:bg-stone-100">✎</button>
-                <button type="button" onclick="wmDelete(${w.id})" class="text-xs px-2 py-1 rounded bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100">🗑</button>
-            </span>
-        </div>`).join('');
-}
-async function wmCall(method, url, body) {
-    const res = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-    let data = {};
-    try { data = await res.json(); } catch (e) {}
-    if (!res.ok || !data.success) throw new Error(data.error || ('HTTP ' + res.status));
-    const r = await fetch('/api/wrappers', { credentials: 'same-origin' });
-    OF_WRAPPERS = (await r.json()).wrappers || [];
-    wmRender();
-    ofRefreshWrapperSelects();
-}
-async function wmAdd() {
-    const input = ofEl('wmNew');
-    const name = input.value.trim();
-    if (!name) return;
-    try { await wmCall('POST', '/api/wrappers', { name }); input.value = ''; } catch (e) { alert(e.message); }
-}
-async function wmEdit(id) {
-    const w = OF_WRAPPERS.find(x => x.id === id);
-    if (!w) return;
-    const name = prompt(OF_T.wmEditPrompt, w.name);
-    if (name === null || !name.trim() || name.trim() === w.name) return;
-    try { await wmCall('PUT', '/api/wrappers/' + id, { name: name.trim() }); } catch (e) { alert(e.message); }
-}
-async function wmDelete(id) {
-    if (!confirm(OF_T.wmDelConfirm)) return;
-    try { await wmCall('DELETE', '/api/wrappers/' + id); } catch (e) { alert(e.message); }
 }
 </script>
