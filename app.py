@@ -44,6 +44,11 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'max_overflow': 10
 }
 
+# Who can receive money / how it was paid (used by the paid tick on each order
+# and by the expense page to be built later).
+PAYMENT_RECEIVERS = ['Ko Kyaw', 'Iris', 'Other']
+PAYMENT_METHODS = ['KPay', 'Cash']
+
 def get_myanmar_now():
     """Returns a datetime object set explicitly to Myanmar Time (UTC +6:30)"""
     myanmar_tz = timezone(timedelta(hours=6, minutes=30))
@@ -69,6 +74,8 @@ class Order(db.Model):
     delivery_fee = db.Column(db.Integer, default=0)  # ကားခ / 车费
     is_paid = db.Column(db.Boolean, nullable=False, default=False)
     payment_date = db.Column(db.String(50), default='')
+    received_by = db.Column(db.String(100), default='')      # Ko Kyaw / Iris / Other
+    payment_method = db.Column(db.String(50), default='')    # KPay / Cash
 
     items = db.relationship(
         'OrderItem',
@@ -125,6 +132,8 @@ def ensure_schema():
     Safe to run on every startup (IF NOT EXISTS)."""
     statements = [
         "ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee INTEGER DEFAULT 0",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS received_by VARCHAR(100) DEFAULT ''",
+        "ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT ''",
         "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS paper_color TEXT DEFAULT ''",
         "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT ''",
         "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS wrapped_by TEXT DEFAULT ''",
@@ -273,10 +282,10 @@ def _group_query_by_day(query):
 
     return orders_by_day
 
-def _fetch_orders_for_period(mode, value, source=None, min_price=None, max_price=None):
+def _fetch_orders_for_period(mode, value, source=None, min_price=None, max_price=None, paid=None):
     """Fetches orders scoped to a single day, a whole month, or a whole
-    year, grouped by day. Optionally restricted to a source and/or a
-    total-price range (manager-only "Price Range" filter)."""
+    year, grouped by day. Optionally restricted to a source, a total-price
+    range and/or paid ('paid') / unpaid ('unpaid') status."""
     query = Order.query.options(joinedload(Order.items))
 
     if mode == 'day' and value:
@@ -295,6 +304,11 @@ def _fetch_orders_for_period(mode, value, source=None, min_price=None, max_price
     if max_price is not None:
         query = query.filter(Order.total_price <= max_price)
 
+    if paid == 'paid':
+        query = query.filter(Order.is_paid.is_(True))
+    elif paid == 'unpaid':
+        query = query.filter(Order.is_paid.is_(False))
+
     return _group_query_by_day(query)
 
 _fetch_orders_grouped_by_day = _fetch_orders_for_period
@@ -312,9 +326,9 @@ PRICE_FILTER_MIN = 0
 PRICE_FILTER_MAX = 5000000
 
 def _parse_price_range():
-    """Price-range filter (0 - 5,000,000 MMK slider on the Daily Records
-    filter bar). Only applied server-side when narrower than the full
-    range, so a default/unused slider never adds a WHERE clause."""
+    """Optional price-range filter (0 - 5,000,000 MMK). The UI slider was
+    removed, but the query-string params still work. Only applied when
+    narrower than the full range."""
     try:
         raw_min = request.args.get('price_min')
         min_price = int(raw_min) if raw_min not in (None, '') else PRICE_FILTER_MIN
@@ -335,6 +349,10 @@ def _parse_price_range():
     applied_max = max_price if max_price < PRICE_FILTER_MAX else None
     return min_price, max_price, applied_min, applied_max
 
+def _parse_paid_filter():
+    paid = (request.args.get('paid') or '').strip()
+    return paid if paid in ('paid', 'unpaid') else ''
+
 def _wrapper_list():
     try:
         return [{'id': w.id, 'name': w.name} for w in Wrapper.query.order_by(Wrapper.name).all()]
@@ -346,11 +364,12 @@ def _wrapper_list():
 def _daily_view_context(filter_action, default_view='day'):
     view_mode, filter_value, selected_day, selected_month, selected_year = _parse_daily_filters(default_view)
     selected_source = (request.args.get('source') or '').strip()
+    selected_paid = _parse_paid_filter()
     price_min, price_max, applied_min, applied_max = _parse_price_range()
 
     orders_by_day = _fetch_orders_for_period(
         view_mode, filter_value, source=selected_source or None,
-        min_price=applied_min, max_price=applied_max
+        min_price=applied_min, max_price=applied_max, paid=selected_paid or None
     )
     total_orders = sum(d['order_count'] for d in orders_by_day)
     total_revenue = sum(d['day_total'] for d in orders_by_day)
@@ -362,6 +381,7 @@ def _daily_view_context(filter_action, default_view='day'):
         'selected_month': selected_month,
         'selected_year': selected_year,
         'selected_source': selected_source,
+        'selected_paid': selected_paid,
         'price_min': price_min,
         'price_max': price_max,
         'price_filter_min': PRICE_FILTER_MIN,
@@ -386,6 +406,8 @@ def _serialize_order_for_export(o):
         'total_price': o.total_price,
         'is_paid': bool(o.is_paid),
         'payment_date': o.payment_date or '',
+        'received_by': o.received_by or '',
+        'payment_method': o.payment_method or '',
         'items': [
             {
                 'item_name': it.item_name,
@@ -505,13 +527,15 @@ def index():
 
     if ctx.get('selected_source'):
         export_params['source'] = ctx['selected_source']
+    if ctx.get('selected_paid'):
+        export_params['paid'] = ctx['selected_paid']
     if ctx.get('price_min', PRICE_FILTER_MIN) > PRICE_FILTER_MIN:
         export_params['price_min'] = ctx['price_min']
     if ctx.get('price_max', PRICE_FILTER_MAX) < PRICE_FILTER_MAX:
         export_params['price_max'] = ctx['price_max']
 
     return render_template(
-        'daily.html', active_page='daily', readonly=False, show_payment=True,
+        'daily.html', active_page='daily', readonly=False, show_payment=True, can_mark_paid=True,
         export_params=export_params, period_value=period_value, **ctx
     )
 
@@ -522,7 +546,10 @@ def staff_view():
         return redirect(url_for('index'))
     db.session.remove()
     ctx = _daily_view_context(url_for('staff_view'))
-    return render_template('staff_daily.html', active_page='staff', readonly=True, show_payment=False, **ctx)
+    return render_template(
+        'staff_daily.html', active_page='staff', readonly=True,
+        show_payment=False, can_mark_paid=True, **ctx
+    )
 
 @app.route('/api/export_orders')
 @manager_required
@@ -534,6 +561,7 @@ def api_export_orders():
     year = (request.args.get('year') or '').strip()
     view = (request.args.get('view') or '').strip()
     source = (request.args.get('source') or '').strip()
+    paid = _parse_paid_filter()
     _, _, applied_min, applied_max = _parse_price_range()
 
     if day:
@@ -545,7 +573,10 @@ def api_export_orders():
     else:
         mode, value = 'all', ''
 
-    groups = _fetch_orders_for_period(mode, value, source=source or None, min_price=applied_min, max_price=applied_max)
+    groups = _fetch_orders_for_period(
+        mode, value, source=source or None,
+        min_price=applied_min, max_price=applied_max, paid=paid or None
+    )
     total_orders = sum(g['order_count'] for g in groups)
     total_revenue = sum(g['day_total'] for g in groups)
 
@@ -553,6 +584,7 @@ def api_export_orders():
         'mode': mode,
         'value': value,
         'source': source,
+        'paid': paid,
         'total_orders': total_orders,
         'total_revenue': total_revenue,
         'orders_by_day': [
@@ -572,13 +604,8 @@ def api_export_orders():
 @app.route('/add_order', methods=['POST'])
 @login_required
 def add_order():
-    if _is_manager():
-        is_paid = request.form.get('is_paid') == 'on'
-        payment_date = request.form.get('payment_date') or ''
-    else:
-        is_paid = False
-        payment_date = ''
-
+    # Payment is ticked on the order card afterwards (needs receiver + method),
+    # so new orders always start unpaid.
     new_order = Order(
         date=request.form.get('date') or get_myanmar_now().strftime('%Y-%m-%d'),
         source=request.form.get('source') or '-',
@@ -588,8 +615,10 @@ def add_order():
         address=(request.form.get('address') or '').strip() or '-',
         wrapped_by='',
         delivery_fee=_to_int(request.form.get('delivery_fee')),
-        is_paid=is_paid,
-        payment_date=payment_date,
+        is_paid=False,
+        payment_date='',
+        received_by='',
+        payment_method='',
     )
 
     try:
@@ -973,19 +1002,40 @@ def run_migration():
     return "Schema check complete (new columns + wrappers table).<br><br><a href='/'>Back to app</a>"
 
 @app.route('/toggle_payment/<int:order_id>', methods=['POST'])
-@manager_required
+@login_required
 def toggle_payment(order_id):
+    """Paid tick on an order card (staff + manager).
+    Ticking requires who received the money and how (KPay / Cash);
+    unticking clears all payment fields."""
     order = Order.query.get_or_404(order_id)
     data = request.get_json(silent=True) or {}
     is_paid = bool(data.get('is_paid'))
-    custom_date = (data.get('payment_date') or '').strip()
 
-    order.is_paid = is_paid
-    order.payment_date = (custom_date or get_myanmar_now().strftime('%Y-%m-%d')) if is_paid else ''
+    if is_paid:
+        who = (data.get('received_by') or '').strip()
+        method = (data.get('payment_method') or '').strip()
+        if who not in PAYMENT_RECEIVERS or method not in PAYMENT_METHODS:
+            db.session.remove()
+            return jsonify({'success': False, 'error': 'Choose who received it and the payment method'}), 400
+        order.is_paid = True
+        order.received_by = who
+        order.payment_method = method
+        order.payment_date = (data.get('payment_date') or '').strip() or get_myanmar_now().strftime('%Y-%m-%d')
+    else:
+        order.is_paid = False
+        order.received_by = ''
+        order.payment_method = ''
+        order.payment_date = ''
 
     try:
         db.session.commit()
-        return jsonify({'success': True, 'is_paid': order.is_paid, 'payment_date': order.payment_date})
+        return jsonify({
+            'success': True,
+            'is_paid': order.is_paid,
+            'payment_date': order.payment_date,
+            'received_by': order.received_by,
+            'payment_method': order.payment_method,
+        })
     except Exception as e:
         db.session.rollback()
         print("TOGGLE PAYMENT ERROR:", e)
@@ -1020,17 +1070,18 @@ def archive_export():
     writer = csv.writer(buf)
     writer.writerow([
         'order_id', 'date', 'source', 'customer', 'time', 'address', 'delivery_fee',
-        'is_paid', 'payment_date', 'order_total',
+        'is_paid', 'payment_date', 'received_by', 'payment_method', 'order_total',
         'item_name', 'item_price', 'paper_color', 'wrapped_by', 'has_cake', 'photo_url', 'cake_photo_url', 'remarks'
     ])
     for o in orders:
         if not o.items:
             writer.writerow([o.id, o.date, o.source, o.customer, o.time, o.address, o.delivery_fee,
-                              o.is_paid, o.payment_date, o.total_price, '', '', '', o.wrapped_by, '', '', '', ''])
+                              o.is_paid, o.payment_date, o.received_by, o.payment_method, o.total_price,
+                              '', '', '', o.wrapped_by, '', '', '', ''])
         for item in o.items:
             writer.writerow([
                 o.id, o.date, o.source, o.customer, o.time, o.address, o.delivery_fee,
-                o.is_paid, o.payment_date, o.total_price,
+                o.is_paid, o.payment_date, o.received_by, o.payment_method, o.total_price,
                 item.item_name, item.price, item.paper_color, item.wrapped_by or o.wrapped_by,
                 item.has_cake, item.photo_url, item.cake_photo_url, item.remarks
             ])
@@ -1083,7 +1134,8 @@ def update_cell():
 
     # Whitelist editable fields so this endpoint can't touch ids/relations.
     allowed = {
-        "order": {"date", "source", "customer", "time", "address", "wrapped_by", "is_paid", "delivery_fee"},
+        "order": {"date", "source", "customer", "time", "address", "wrapped_by", "is_paid", "delivery_fee",
+                  "received_by", "payment_method"},
         "item": {"item_name", "price", "remarks", "paper_color", "wrapped_by"},
     }
     if table not in allowed or field not in allowed[table]:
