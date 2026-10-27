@@ -298,10 +298,29 @@ function ofRenumber() {
 function ofToggleCake(sel) {
     sel.closest('.item-row').querySelector('.cake-block').classList.toggle('hidden', sel.value !== '1');
 }
-function ofPreview(input) {
+async function ofCompress(file, maxDim = 1600, quality = 0.8) {
+    if (!file.type.startsWith('image/')) return file;
+    try {
+        const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(bmp.width * scale);
+        c.height = Math.round(bmp.height * scale);
+        c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', quality));
+        if (!blob) return file;
+        return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+    } catch (e) { return file; }
+}
+
+async function ofPreview(input) {
     const img = input.parentElement.querySelector('img.of-photo');
     if (input.files && input.files[0]) {
-        img.src = URL.createObjectURL(input.files[0]);
+        const small = await ofCompress(input.files[0]);
+        const dt = new DataTransfer();
+        dt.items.add(small);
+        input.files = dt.files;
+        img.src = URL.createObjectURL(small);
         img.classList.remove('hidden');
     }
 }
