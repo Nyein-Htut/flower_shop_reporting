@@ -82,16 +82,12 @@
         }
     </style>
 
-    <header class="py-8 px-4 sm:px-6 lg:px-8 no-print">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div class="space-y-1">
-                <h1 class="text-3xl sm:text-4xl font-semibold tracking-wide text-stone-900 font-serif">
-                    每日订单流水明细
-                </h1>
-                <p class="text-xs sm:text-sm text-stone-400 tracking-widest font-sans uppercase">
-                    云端数据中心 · 团队多端协同
-                </p>
-            </div>
+    <header class="pt-6 pb-2 px-4 sm:px-6 lg:px-8 no-print">
+    <div class="max-w-7xl mx-auto space-y-1">
+        <h1 class="text-2xl sm:text-4xl font-semibold tracking-wide text-stone-900 font-serif">每日订单流水明细</h1>
+        <p class="text-xs sm:text-sm text-stone-400 tracking-widest font-sans uppercase">云端数据中心 · 团队多端协同</p>
+    </div>
+    </header>
             <div class="flex flex-wrap gap-3 w-full sm:w-auto">
                 <button onclick="exportTableToCSV()" class="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs uppercase tracking-widest font-sans font-semibold py-3.5 px-6 rounded transition-all shadow-xs border border-stone-300/60 cursor-pointer">
                     导出 CSV 表格
@@ -104,7 +100,6 @@
                 </button>
             </div>
         </div>
-    </header>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
 
