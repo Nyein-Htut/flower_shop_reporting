@@ -1,4 +1,12 @@
 {# Manager-only: standalone wrapper (包花员工) manager. Same structure as the source picker. #}
+<style>
+    #wmOverlay { align-items: center; padding: 16px; }
+    #wmOverlay .wp-sheet {
+        border-radius: 20px; transform: translateY(16px); opacity: 0;
+        max-height: calc(100dvh - 32px); overflow-y: auto;
+    }
+    #wmOverlay.active .wp-sheet { transform: none; opacity: 1; }
+</style>
 <div class="wp-overlay" id="wmOverlay" onclick="if(event.target===this) wmClose()">
     <div class="wp-sheet">
         <div class="wp-title">包花员工管理 (Manage Wrappers)</div>
