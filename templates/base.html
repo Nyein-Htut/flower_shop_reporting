@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Iris Flower Data Hub{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght=0,400..700;1,400..700&family=Noto+Serif+SC:wght=400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+Myanmar:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -327,7 +326,7 @@
         .wp-source-check { opacity: 0; color: #6f4e2e; font-weight: 700; transition: opacity .15s ease; }
         .wp-source-item.wp-source-selected .wp-source-check { opacity: 1; }
 
-        /* ===== Price Range Slider ===== */
+        /* ===== Price Range Slider (kept for compatibility; UI no longer uses it) ===== */
         .pr-wrap { min-width: 240px; flex: 1 1 260px; }
         .pr-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #57534e; margin-bottom: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .pr-slider { position: relative; height: 32px; }
@@ -353,9 +352,11 @@
         .pr-slider input[type=range]::-moz-range-track { background: transparent; }
     </style>
 </head>
-    <div class="wp-overlay" id="wpTimeOverlay" onclick="if(event.target===this) closeWheelOverlay('wpTimeOverlay')">
+<body class="bg-[#FCFAF7] text-[#21201F] min-h-screen pb-12">
+
+<div class="wp-overlay" id="wpTimeOverlay" onclick="if(event.target===this) closeWheelOverlay('wpTimeOverlay')">
     <div class="wp-sheet">
-        <div class="wp-title">{% if readonly %}ပေးပို့မည့် အချိန် ရွေးပါ (Set Delivery Time){% else %}送达时间选择 (Set Delivery Time){% endif %}</div>
+        <div class="wp-title">{% if readonly %}ပေးပို့မည့် အချိန်{% else %}送达时间选择 (Set Delivery Time){% endif %}</div>
         <div class="wp-display" id="wpTimeDisplay">--:--</div>
         <div class="wp-wheels">
             <div class="wp-fade-top"></div>
@@ -370,21 +371,21 @@
             </div>
         </div>
         <div class="wp-quick">
-            <div class="wp-quick-btn" data-mins="0">{% if readonly %}ယခု Now{% else %}现在 Now{% endif %}</div>
+            <div class="wp-quick-btn" data-mins="0">{% if readonly %}ယခု{% else %}现在 Now{% endif %}</div>
             <div class="wp-quick-btn" data-mins="30">{% if readonly %}+30 မိနစ်{% else %}+30分{% endif %}</div>
             <div class="wp-quick-btn" data-mins="60">{% if readonly %}+1 နာရီ{% else %}+1小时{% endif %}</div>
             <div class="wp-quick-btn" data-mins="120">{% if readonly %}+2 နာရီ{% else %}+2小时{% endif %}</div>
         </div>
         <div class="wp-actions">
-            <button type="button" class="wp-btn wp-btn-cancel" id="wpTimeCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
-            <button type="button" class="wp-btn wp-btn-set" id="wpTimeSetBtn">{% if readonly %}သတ်မှတ် Set{% else %}确定 Set{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpTimeCancelBtn">{% if readonly %}ပယ်ဖျက်{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-set" id="wpTimeSetBtn">{% if readonly %}သတ်မှတ်{% else %}确定 Set{% endif %}</button>
         </div>
     </div>
 </div>
 
 <div class="wp-overlay" id="wpDateOverlay" onclick="if(event.target===this) closeWheelOverlay('wpDateOverlay')">
     <div class="wp-sheet">
-        <div class="wp-title" id="wpDateTitle">{% if readonly %}ရက်စွဲ ရွေးပါ (Set Date){% else %}付款日期选择 (Set Payment Date){% endif %}</div>
+        <div class="wp-title" id="wpDateTitle">{% if readonly %}ရက်စွဲ ရွေးပါ{% else %}付款日期选择 (Set Payment Date){% endif %}</div>
         <div class="wp-display" id="wpDateDisplay">--</div>
         <div class="wp-wheels">
             <div class="wp-fade-top"></div>
@@ -395,30 +396,30 @@
             </div>
         </div>
         <div class="wp-quick" id="wpDateQuick">
-            <div class="wp-quick-btn" data-offset="0">{% if readonly %}ယနေ့ Today{% else %}今天 Today{% endif %}</div>
-            <div class="wp-quick-btn" data-offset="-1">{% if readonly %}မနေ့က Yesterday{% else %}昨天 Yesterday{% endif %}</div>
-            <div class="wp-quick-btn" data-offset="-7">{% if readonly %}တစ်ပတ်ခန့် 1wk ago{% else %}一周前 1wk ago{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="0">{% if readonly %}ယနေ့{% else %}今天 Today{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-1">{% if readonly %}မနေ့က{% else %}昨天 Yesterday{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-7">{% if readonly %}တစ်ပတ်ခန့်{% else %}一周前 1wk ago{% endif %}</div>
         </div>
         <div class="wp-actions">
-            <button type="button" class="wp-btn wp-btn-cancel" id="wpDateCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
-            <button type="button" class="wp-btn wp-btn-set" id="wpDateSetBtn">{% if readonly %}သတ်မှတ် Set{% else %}确定 Set{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpDateCancelBtn">{% if readonly %}ပယ်ဖျက်{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-set" id="wpDateSetBtn">{% if readonly %}သတ်မှတ်{% else %}确定 Set{% endif %}</button>
         </div>
     </div>
 </div>
 
 <div class="wp-overlay" id="wpSourceOverlay" onclick="if(event.target===this) closeWheelOverlay('wpSourceOverlay')">
     <div class="wp-sheet">
-        <div class="wp-title" id="wpSourceTitle">{% if readonly %}အော်ဒါလာသည့်နေရာ ရွေးပါ (Select Source){% else %}订单来源选择 (Select Source){% endif %}</div>
+        <div class="wp-title" id="wpSourceTitle">{% if readonly %}နေရာ ရွေးပါ{% else %}订单来源选择 (Select Source){% endif %}</div>
         <div class="wp-source-list" id="wpSourceList"></div>
         <div class="wp-actions">
-            <button type="button" class="wp-btn wp-btn-cancel" id="wpSourceCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpSourceCancelBtn">{% if readonly %}ပယ်ဖျက်{% else %}取消 Cancel{% endif %}</button>
         </div>
     </div>
 </div>
 
 <div class="wp-overlay" id="wpMonthOverlay" onclick="if(event.target===this) closeWheelOverlay('wpMonthOverlay')">
     <div class="wp-sheet">
-        <div class="wp-title" id="wpMonthTitle">{% if readonly %}လ ရွေးပါ (Select Month){% else %}月份选择 (Select Month){% endif %}</div>
+        <div class="wp-title" id="wpMonthTitle">{% if readonly %}လ ရွေးပါ{% else %}月份选择 (Select Month){% endif %}</div>
         <div class="wp-display" id="wpMonthDisplay">--</div>
         <div class="wp-wheels">
             <div class="wp-fade-top"></div>
@@ -429,23 +430,23 @@
             </div>
         </div>
         <div class="wp-quick" id="wpMonthQuick">
-            <div class="wp-quick-btn" data-offset="0">{% if readonly %}ယခုလ This Month{% else %}本月 This Month{% endif %}</div>
-            <div class="wp-quick-btn" data-offset="-1">{% if readonly %}ပြီးခဲ့သောလ Last Month{% else %}上月 Last Month{% endif %}</div>
-            <div class="wp-quick-btn" data-offset="-12">{% if readonly %}တစ်နှစ်ခန့် 1yr ago{% else %}一年前 1yr ago{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="0">{% if readonly %}ယခုလ{% else %}本月 This Month{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-1">{% if readonly %}ပြီးခဲ့သောလ{% else %}上月 Last Month{% endif %}</div>
+            <div class="wp-quick-btn" data-offset="-12">{% if readonly %}တစ်နှစ်ခန့်{% else %}一年前 1yr ago{% endif %}</div>
         </div>
         <div class="wp-actions">
-            <button type="button" class="wp-btn wp-btn-cancel" id="wpMonthCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
-            <button type="button" class="wp-btn wp-btn-set" id="wpMonthSetBtn">{% if readonly %}သတ်မှတ် Set{% else %}确定 Set{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpMonthCancelBtn">{% if readonly %}ပယ်ဖျက်{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-set" id="wpMonthSetBtn">{% if readonly %}သတ်မှတ်{% else %}确定 Set{% endif %}</button>
         </div>
     </div>
 </div>
 
 <div class="wp-overlay" id="wpYearOverlay" onclick="if(event.target===this) closeWheelOverlay('wpYearOverlay')">
     <div class="wp-sheet">
-        <div class="wp-title" id="wpYearTitle">{% if readonly %}နှစ် ရွေးပါ (Select Year){% else %}年份选择 (Select Year){% endif %}</div>
+        <div class="wp-title" id="wpYearTitle">{% if readonly %}နှစ် ရွေးပါ{% else %}年份选择 (Select Year){% endif %}</div>
         <div class="wp-source-list" id="wpYearList"></div>
         <div class="wp-actions">
-            <button type="button" class="wp-btn wp-btn-cancel" id="wpYearCancelBtn">{% if readonly %}ပယ်ဖျက် Cancel{% else %}取消 Cancel{% endif %}</button>
+            <button type="button" class="wp-btn wp-btn-cancel" id="wpYearCancelBtn">{% if readonly %}ပယ်ဖျက်{% else %}取消 Cancel{% endif %}</button>
         </div>
     </div>
 </div>
@@ -822,6 +823,41 @@ function openSourcePicker(triggerBtnId, hiddenInputId, titleText) {
     document.getElementById('wpSourceCancelBtn').onclick = () => closeWheelOverlay('wpSourceOverlay');
 }
 
+/* Generic picker — same overlay + CSS as the source picker.
+   cfg: { title, options: ['A','B'] | [{label, value}], selected, onPick(value, label), onCancel() }
+   Used for: wrapper picker, filter source, "received by", payment method. */
+function openListPicker(cfg) {
+    const listEl = document.getElementById('wpSourceList');
+    document.getElementById('wpSourceTitle').textContent = cfg.title || '';
+
+    listEl.innerHTML = '';
+    (cfg.options || []).forEach((opt) => {
+        const o = (typeof opt === 'string') ? { label: opt, value: opt } : opt;
+        const item = document.createElement('div');
+        item.className = 'wp-source-item' +
+            (String(cfg.selected == null ? '' : cfg.selected) === String(o.value) ? ' wp-source-selected' : '');
+        const name = document.createElement('span');
+        name.textContent = o.label;
+        const check = document.createElement('span');
+        check.className = 'wp-source-check';
+        check.textContent = '✓';
+        item.append(name, check);
+        item.addEventListener('click', () => {
+            closeWheelOverlay('wpSourceOverlay');
+            cfg.onPick(o.value, o.label);
+        });
+        listEl.appendChild(item);
+    });
+
+    document.getElementById('wpSourceOverlay').classList.add('active');
+    wpLockBody();
+
+    document.getElementById('wpSourceCancelBtn').onclick = () => {
+        closeWheelOverlay('wpSourceOverlay');
+        if (cfg.onCancel) cfg.onCancel();
+    };
+}
+
 function openTimeWheelPicker(triggerBtnId, hiddenInputId) {
     const btn = document.getElementById(triggerBtnId);
     const span = btn.querySelector('span');
@@ -970,104 +1006,15 @@ function openDateWheelPicker(triggerBtnIdOrCfg, hiddenInputId) {
     };
 }
 
-function openFilterDayPicker() {
-    const btn = document.getElementById('filterDayTriggerBtn');
-    const span = btn.querySelector('span');
-    const hidden = document.getElementById('filterDayHidden');
-
-    document.getElementById('wpDateTitle').textContent = {% if readonly %}'ရက်စွဲ ရွေးပါ (Filter by Day)'{% else %}'按日期筛选 (Filter by Day)'{% endif %};
-    const quickWrap = document.getElementById('wpDateQuick');
-    quickWrap.innerHTML = {% if readonly %}`
-        <div class="wp-quick-btn" data-offset="0">ယနေ့ Today</div>
-        <div class="wp-quick-btn" data-offset="-1">မနေ့က Yesterday</div>
-        <div class="wp-quick-btn" data-offset="-7">တစ်ပတ်ခန့် 1wk ago</div>
-    `{% else %}`
-        <div class="wp-quick-btn" data-offset="0">今天 Today</div>
-        <div class="wp-quick-btn" data-offset="-1">昨天 Yesterday</div>
-        <div class="wp-quick-btn" data-offset="-7">一周前 1wk ago</div>
-    `{% endif %};
-
-    const RANGE_BACK = 180, RANGE_FWD = 60;
-    const dayItems = [];
-    for (let o = -RANGE_BACK; o <= RANGE_FWD; o++) {
-        dayItems.push({ label: wpFormatRelativeDay(o), value: wpIsoForOffset(o) });
-    }
-
-    let initialIndex = RANGE_BACK;
-    if (hidden.value) {
-        const idx = dayItems.findIndex(it => it.value === hidden.value);
-        if (idx >= 0) initialIndex = idx;
-    }
-
-    const overlay = document.getElementById('wpDateOverlay');
-    overlay.classList.add('active');
-    wpLockBody();
-
-    const state = { idx: initialIndex };
-    function updateDisplay() {
-        document.getElementById('wpDateDisplay').textContent = dayItems[state.idx].label;
-    }
-    const dayCol = wpBuildColumn('wpDayScroll', dayItems, initialIndex, (idx) => { state.idx = idx; updateDisplay(); });
-    updateDisplay();
-
-    quickWrap.querySelectorAll('.wp-quick-btn').forEach(qbtn => {
-        qbtn.onclick = () => dayCol.setIndex(RANGE_BACK + parseInt(qbtn.dataset.offset, 10));
-    });
-
-    document.getElementById('wpDateSetBtn').onclick = () => {
-        const chosen = dayItems[dayCol.index];
-        hidden.value = chosen.value;
-        span.textContent = chosen.label;
-        btn.classList.remove('wp-empty');
-        closeWheelOverlay('wpDateOverlay');
-        document.getElementById('dailyFilterForm').submit();
-    };
-    document.getElementById('wpDateCancelBtn').onclick = () => closeWheelOverlay('wpDateOverlay');
-}
-
-function openSourceFilterPicker() {
-    const btn = document.getElementById('filterSourceTriggerBtn');
-    const span = btn.querySelector('span');
-    const hidden = document.getElementById('filterSourceHidden');
-    const listEl = document.getElementById('wpSourceList');
-
-    document.getElementById('wpSourceTitle').textContent = '按来源筛选 (Filter by Source)';
-
-    const allLabel = '全部来源 (All Sources)';
-    const options = [allLabel, ...WP_SOURCE_OPTIONS];
-
-    listEl.innerHTML = '';
-    options.forEach((opt) => {
-        const val = opt === allLabel ? '' : opt;
-        const item = document.createElement('div');
-        item.className = 'wp-source-item' + (hidden.value === val ? ' wp-source-selected' : '');
-        item.innerHTML = `<span>${opt}</span><span class="wp-source-check">✓</span>`;
-        item.addEventListener('click', () => {
-            hidden.value = val;
-            span.textContent = val || allLabel;
-            btn.classList.toggle('wp-empty', !val);
-            closeWheelOverlay('wpSourceOverlay');
-            if (window.updateDailyOrderFilters) window.updateDailyOrderFilters();
-            updateDailyMoreFiltersBadge();
-        });
-        listEl.appendChild(item);
-    });
-
-    document.getElementById('wpSourceOverlay').classList.add('active');
-    wpLockBody();
-
-    document.getElementById('wpSourceCancelBtn').onclick = () => closeWheelOverlay('wpSourceOverlay');
-}
-
 function openDeliveryDateWheelPicker(triggerBtnId, dateHiddenId, timeHiddenId) {
     const dateHidden = document.getElementById(dateHiddenId);
 
-    document.getElementById('wpDateTitle').textContent = {% if readonly %}'ပေးပို့မည့် ရက်စွဲ ရွေးပါ (Set Delivery Date)'{% else %}'送达日期选择 (Set Delivery Date)'{% endif %};
+    document.getElementById('wpDateTitle').textContent = {% if readonly %}'ပေးပို့မည့် ရက်စွဲ'{% else %}'送达日期选择 (Set Delivery Date)'{% endif %};
     const quickWrap = document.getElementById('wpDateQuick');
     quickWrap.innerHTML = {% if readonly %}`
-        <div class="wp-quick-btn" data-offset="0">ယနေ့ Today</div>
-        <div class="wp-quick-btn" data-offset="1">မနက်ဖြန် Tomorrow</div>
-        <div class="wp-quick-btn" data-offset="2">တစ်ရက်ကျော် +2 Days</div>
+        <div class="wp-quick-btn" data-offset="0">ယနေ့</div>
+        <div class="wp-quick-btn" data-offset="1">မနက်ဖြန်</div>
+        <div class="wp-quick-btn" data-offset="2">+2 ရက်</div>
     `{% else %}`
         <div class="wp-quick-btn" data-offset="0">今天 Today</div>
         <div class="wp-quick-btn" data-offset="1">明天 Tomorrow</div>
@@ -1296,7 +1243,7 @@ async function renderOrderCardsPDF(opts) {
 
     const allTextParts = [];
     (ordersByDay || []).forEach(g => (g.orders || []).forEach(o => {
-        allTextParts.push(o.customer, o.address, o.source, o.wrapped_by, o.payment_date);
+        allTextParts.push(o.customer, o.address, o.source, o.wrapped_by, o.payment_date, o.received_by, o.payment_method);
         (o.items || []).forEach(it => allTextParts.push(it.item_name, it.remarks));
     }));
     const T = await wpPrepareUnicodeText(pdf, allTextParts);
@@ -1336,7 +1283,10 @@ async function renderOrderCardsPDF(opts) {
             pdf.setFont(undefined, 'normal');
             pdf.setFontSize(7.5);
             if (order.is_paid) { pdf.setTextColor(4, 120, 87); } else { pdf.setTextColor(180, 83, 9); }
-            const payLabel = order.is_paid ? ('Paid' + (order.payment_date ? ' · ' + order.payment_date : '')) : 'Unpaid';
+            const payParts = ['Paid'];
+            if (order.received_by) payParts.push(order.received_by);
+            if (order.payment_method) payParts.push(order.payment_method);
+            const payLabel = order.is_paid ? payParts.join(' · ') : 'Unpaid';
             pdf.text(payLabel, x + w - 4, y + 10, { align: 'right' });
         }
         cy += 5;
@@ -1719,7 +1669,6 @@ function wpInitPriceRangeSlider(cfg) {
     };
 }
 </script>
-<body class="bg-[#FCFAF7] text-[#21201F] min-h-screen pb-12">
 
     {% if request.endpoint != 'login' %}
     <nav class="bg-white border-b border-stone-200/60 shadow-xs no-print sticky top-0 z-50">
@@ -1743,10 +1692,10 @@ function wpInitPriceRangeSlider(cfg) {
                     <div class="flex space-x-1 font-sans text-xs sm:text-sm uppercase tracking-wide overflow-x-auto no-scrollbar max-w-full whitespace-nowrap">
                         {% if session.get('role') == 'staff' %}
                         <a href="/staff" class="{% if active_page == 'staff' %}bg-emerald-700 text-white shadow-xs{% else %}text-stone-500 hover:text-stone-900 hover:bg-stone-100{% endif %} px-3.5 py-2 rounded font-medium transition-all">
-                            နေ့စဉ်မှတ်တမ်း (Daily)
+                            အော်ဒါများ
                         </a>
                         <a href="/logout" class="text-red-600 hover:bg-red-50 px-3.5 py-2 rounded font-medium transition-all">
-                            အကောင့်ထွက်ရန် (Logout)
+                            ထွက်ရန်
                         </a>
                         {% else %}
                         <a href="/" class="{% if active_page == 'daily' %}bg-stone-950 text-white shadow-xs{% else %}text-stone-500 hover:text-stone-900 hover:bg-stone-100{% endif %} px-3.5 py-2 rounded font-medium transition-all">
@@ -1762,7 +1711,7 @@ function wpInitPriceRangeSlider(cfg) {
                     </div>
 
                     <div class="hidden lg:block text-xs text-stone-400 font-sans tracking-widest uppercase">
-                        {% if session.get('role') == 'staff' %}ဝန်ထမ်းစာမျက်နှာ{% else %}System Connected{% endif %}
+                        {% if session.get('role') != 'staff' %}System Connected{% endif %}
                     </div>
                 </div>
 
