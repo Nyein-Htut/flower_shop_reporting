@@ -1,5 +1,44 @@
 {# Delete-confirmation modal: manager (daily.html). Edit now lives in order_form.html. #}
+<style>
+    .fab-round { position: fixed; z-index: 40; border: none; cursor: pointer; border-radius: 9999px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 8px 20px rgba(0,0,0,.25); transition: transform .15s ease; }
+    .fab-round:active { transform: scale(.94); }
+    #fabFilter { left: 22px; bottom: 22px; width: 56px; height: 56px; background: #1c1917; color: #fff; }
+    #fabTools  { right: 27px; bottom: 98px; width: 52px; height: 52px; background: #fff; color: #44403c; border: 1px solid #e7e5e4; }
+    #toolsMenu { position: fixed; right: 22px; bottom: 162px; z-index: 40; min-width: 210px; background: #fff;
+        border: 1px solid #e7e5e4; border-radius: 16px; box-shadow: 0 14px 34px rgba(0,0,0,.18);
+        padding: 6px; display: none; }
+    #toolsMenu.open { display: block; }
+    #toolsMenu button { width: 100%; text-align: left; padding: 13px 14px; border-radius: 10px; border: none;
+        background: transparent; font-size: 14px; font-weight: 600; color: #292524; cursor: pointer; }
+    #toolsMenu button:hover { background: #f5f5f4; }
+    #toolsBackdrop { position: fixed; inset: 0; z-index: 39; display: none; }
+    #toolsBackdrop.open { display: block; }
+</style>
 
+<button type="button" id="fabFilter" class="fab-round no-print" onclick="dfOpen()" aria-label="Filter">
+    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18l-7 8v6l-4-2v-4L3 5z"/></svg>
+</button>
+
+<button type="button" id="fabTools" class="fab-round no-print" onclick="toggleTools()" aria-label="Tools">
+    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01"/></svg>
+</button>
+
+<div id="toolsBackdrop" class="no-print" onclick="toggleTools(false)"></div>
+<div id="toolsMenu" class="no-print">
+    <button type="button" onclick="toggleTools(false); exportTableToCSV()">📄 导出 CSV</button>
+    <button type="button" id="pdfExportBtn" onclick="runDailyPdfExport()">📑 下载 PDF 报表</button>
+    <button type="button" onclick="toggleTools(false); wmOpen()">🎀 包花员工管理</button>
+</div>
+
+<script>
+function toggleTools(force) {
+    const open = (typeof force === 'boolean') ? force : !document.getElementById('toolsMenu').classList.contains('open');
+    document.getElementById('toolsMenu').classList.toggle('open', open);
+    document.getElementById('toolsBackdrop').classList.toggle('open', open);
+}
+</script>
 <div id="deleteConfirmationModal" class="fixed inset-0 z-50 hidden bg-stone-900/40 backdrop-blur-sm items-center justify-center p-4 transition-all duration-200">
     <div class="bg-white max-w-md w-full rounded border border-stone-200 shadow-xl overflow-hidden p-6 space-y-6 transform scale-95 transition-transform duration-200" id="modalCard">
         <div class="flex items-start gap-4">
