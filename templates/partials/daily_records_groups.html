@@ -1,0 +1,93 @@
+{# Day groups + order cards. Used for the first page render and for lazy-load
+   chunks (/api/daily_chunk). Needs: orders_by_day, readonly, show_payment, can_mark_paid. #}
+{% if readonly %}
+{% set t = {
+  'orders':'အော်ဒါ','paid':'ပေးပြီး','markPaid':'ငွေရှင်းမည်','sourceLbl':'နေရာ',
+  'note':'မှတ်ချက်','time':'အချိန်','wrapper':'ပန်းစည်းစည်းသူ','edit':'ပြင်','del':'ဖျက်'
+} %}
+{% else %}
+{% set t = {
+  'orders':'笔订单','paid':'已付款','markPaid':'标记已付款','sourceLbl':'来源',
+  'note':'备注','time':'时间','wrapper':'包花员工','edit':'编辑','del':'删除'
+} %}
+{% endif %}
+
+{% for day_group in orders_by_day %}
+<div class="day-group mb-6 last:mb-0">
+    <div class="day-separator">
+        <span class="day-separator-date">{{ day_group.date_display }}</span>
+        <span class="day-separator-meta">{{ day_group.order_count }} {{ t.orders }}{% if show_payment %} · {{ "{:,}".format(day_group.day_total) }} MMK{% endif %}</span>
+    </div>
+
+    <div class="orders-grid">
+        {% for order in day_group.orders %}
+        {% set pay_text %}{% if order.is_paid %}{{ t.paid }}{% if order.received_by %} · {{ order.received_by }}{% endif %}{% if order.payment_method %} · {{ order.payment_method }}{% endif %}{% else %}{{ t.markPaid }}{% endif %}{% endset %}
+        <div class="order-card"
+            id="order-card-{{ order.id }}"
+            data-date="{{ order.date }}"
+            data-customer="{{ order.customer }}"
+            data-source="{{ order.source }}"
+            data-time="{{ order.time }}"
+            data-address="{{ order.address }}"
+            data-total="{{ order.total_price }}"
+            data-wrapped-by="{{ order.wrapped_by }}"
+            data-paid="{{ 'true' if order.is_paid else 'false' }}">
+
+            <div class="oc-header">
+                <div class="oc-header-main">
+                    <div class="oc-date">{{ order.date }}</div>
+                    <div class="oc-customer">{{ order.customer }}</div>
+                    <div class="oc-source">{{ t.sourceLbl }}: {{ order.source }}</div>
+                </div>
+                <div class="oc-total-wrap">
+                    <div class="oc-total">{{ "{:,}".format(order.total_price) }} MMK</div>
+                    {% if can_mark_paid %}
+                    <label class="oc-payment-toggle no-print {% if order.is_paid %}is-paid{% endif %}">
+                        <input type="checkbox" class="oc-payment-checkbox" {% if order.is_paid %}checked{% endif %}
+                            data-order-id="{{ order.id }}" onchange="handlePaymentCheckboxChange(this)">
+                        <span class="oc-payment-toggle-label">{{ pay_text|trim }}</span>
+                    </label>
+                    <div class="oc-payment-badge print-only {{ 'oc-paid' if order.is_paid else 'oc-unpaid' }}">{{ '✅ ' if order.is_paid else '⏳ ' }}{{ pay_text|trim }}</div>
+                    {% else %}
+                    <div class="oc-payment-badge {{ 'oc-paid' if order.is_paid else 'oc-unpaid' }}">{{ '✅ ' if order.is_paid else '⏳ ' }}{{ pay_text|trim }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="oc-items">
+                {% for item in order.items %}
+                <div class="oc-item" data-item-name="{{ item.item_name }}" data-price="{{ item.price }}" data-remarks="{{ item.remarks }}">
+                    <div class="oc-item-meta">
+                        <div class="oc-item-name">💐 {{ item.item_name }}</div>
+                        {% if item.remarks and item.remarks != '-' and item.remarks != '' %}
+                        <div class="oc-item-remarks">{{ t.note }}: {{ item.remarks }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="oc-footer">
+                <div class="oc-footer-text">
+                    <span class="oc-time">{{ t.time }}: {{ order.time }}</span>
+                    <span class="oc-address">{{ order.address }}</span>
+                    {% if order.wrapped_by and order.wrapped_by != '' %}
+                    <span class="oc-wrapped-by">🎀 {{ t.wrapper }}: {{ order.wrapped_by }}</span>
+                    {% endif %}
+                </div>
+                <div class="oc-actions no-print">
+                    <button type="button" onclick='openEditModal({{ order.to_dict()|tojson }})' class="oc-action-btn oc-action-edit">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+                        <span>{{ t.edit }}</span>
+                    </button>
+                    <button type="button" onclick='openDeleteModal({{ order.id|tojson }}, {{ order.customer|tojson }}, {{ order.date|tojson }})' class="oc-action-btn oc-action-delete">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <span>{{ t.del }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
