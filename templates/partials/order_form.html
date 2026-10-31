@@ -16,7 +16,8 @@
   'remarks': 'မှတ်ချက်',
   'cake': 'ကိတ်ပါ မပါ', 'cakeYes': 'ကိတ်ပါ', 'cakeNo': 'ကိတ်မပါ', 'cakePhoto': 'ကိတ်ဓာတ်ပုံ',
   'save': 'သိမ်းမည်', 'update': 'မွမ်းမံမည်', 'cancel': 'ပယ်ဖျက်', 'saving': 'သိမ်းနေသည်…',
-  'needOne': 'ပန်းစည်းအမည် အနည်းဆုံး တစ်ခု ထည့်ပါ။'
+  'needOne': 'ပန်းစည်းအမည် အနည်းဆုံး တစ်ခု ထည့်ပါ။',
+  'compressing': 'ဓာတ်ပုံ ချုံ့နေသည်…'
 } %}
 {% else %}
 {% set t = {
@@ -31,7 +32,8 @@
   'remarks': '备注',
   'cake': '是否有蛋糕', 'cakeYes': '有蛋糕', 'cakeNo': '无蛋糕', 'cakePhoto': '蛋糕照片',
   'save': '保存订单', 'update': '保存修改', 'cancel': '取消', 'saving': '保存中…',
-  'needOne': '请至少填写一个花束名称。'
+  'needOne': '请至少填写一个花束名称。',
+  'compressing': '压缩图片中…'
 } %}
 {% endif %}
 
@@ -173,6 +175,7 @@ function openOrderForm(order) {
     m.classList.remove('hidden');
     m.classList.add('flex');
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('of-open');   // hides the filter fan while the form is open
 }
 function openEditModal(order) { openOrderForm(order); }   // used by the edit button on each card
 
@@ -181,6 +184,7 @@ function closeOrderForm() {
     m.classList.add('hidden');
     m.classList.remove('flex');
     document.body.style.overflow = '';
+    document.body.classList.remove('of-open');
 }
 ofEl('orderFormModal').addEventListener('click', e => { if (e.target === ofEl('orderFormModal')) closeOrderForm(); });
 
@@ -190,6 +194,7 @@ function getOrderFormToday() {
 }
 
 function orderFormSubmit() {
+    if (_ofCompressing > 0) return false;   // photos still being compressed
     const named = [...document.querySelectorAll('#orderForm [name="item_name[]"]')].filter(t => t.value.trim());
     if (!named.length) { alert(OF_T.needOne); return false; }
     if (_ofEditingId) { try { sessionStorage.setItem('mc_restore_order_id', String(_ofEditingId)); } catch (e) {} }
@@ -298,30 +303,66 @@ function ofRenumber() {
 function ofToggleCake(sel) {
     sel.closest('.item-row').querySelector('.cake-block').classList.toggle('hidden', sel.value !== '1');
 }
-async function ofCompress(file, maxDim = 1600, quality = 0.8) {
-    if (!file.type.startsWith('image/')) return file;
+/* ---------- photo preview + automatic compression (max 1600px, JPEG ~82%) ---------- */
+let _ofCompressing = 0;
+
+function ofSyncSubmit() {
+    const b = ofEl('orderSubmitBtn');
+    if (_ofCompressing > 0) { b.disabled = true; b.textContent = OF_T.compressing; }
+    else { b.disabled = false; b.textContent = _ofEditingId ? OF_T.update : OF_T.save; }
+}
+
+async function ofCompressImage(file, maxDim = 1600, quality = 0.82) {
+    if (!file || !file.type || !file.type.startsWith('image/')) return file;
+    if (file.type === 'image/jpeg' && file.size <= 400 * 1024) return file;   // already small
+
+    let bmp;
     try {
-        const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-        const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
-        const c = document.createElement('canvas');
-        c.width = Math.round(bmp.width * scale);
-        c.height = Math.round(bmp.height * scale);
-        c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', quality));
-        if (!blob) return file;
-        return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
-    } catch (e) { return file; }
+        bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch (e) {
+        bmp = await new Promise((resolve, reject) => {
+            const im = new Image();
+            im.onload = () => resolve(im);
+            im.onerror = reject;
+            im.src = URL.createObjectURL(file);
+        });
+    }
+    const w0 = bmp.width, h0 = bmp.height;
+    const scale = Math.min(1, maxDim / Math.max(w0, h0));
+    const w = Math.max(1, Math.round(w0 * scale)), h = Math.max(1, Math.round(h0 * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], (file.name.replace(/\.[^.]+$/, '') || 'photo') + '.jpg',
+                    { type: 'image/jpeg', lastModified: Date.now() });
 }
 
 async function ofPreview(input) {
+    const f = input.files && input.files[0];
+    if (!f) return;
     const img = input.parentElement.querySelector('img.of-photo');
-    if (input.files && input.files[0]) {
-        const small = await ofCompress(input.files[0]);
-        const dt = new DataTransfer();
-        dt.items.add(small);
-        input.files = dt.files;
-        img.src = URL.createObjectURL(small);
-        img.classList.remove('hidden');
+    img.src = URL.createObjectURL(f);
+    img.classList.remove('hidden');
+
+    _ofCompressing++; ofSyncSubmit();
+    try {
+        const out = await ofCompressImage(f);
+        if (out && out !== f && typeof DataTransfer !== 'undefined') {
+            const dt = new DataTransfer();
+            dt.items.add(out);
+            input.files = dt.files;          // replaces the original with the compressed copy
+        }
+    } catch (e) {
+        console.warn('Image compression skipped:', e);   // keep the original file
+    } finally {
+        _ofCompressing--; ofSyncSubmit();
     }
 }
 </script>

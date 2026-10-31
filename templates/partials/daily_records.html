@@ -1,333 +1,589 @@
-{# Shared daily records: Filter sheet + search + orders grouped by day. #}
+{# Daily records: summary line + order cards (lazy loaded) + speed-dial filter.
+   The filter is a floating glass button; tapping it fans out shortcuts:
+   💰 paid cycle (tap), 🔍 search, 🏷️ source picker, 📅 period panel.
+   Filters run on the server (/api/daily_chunk), so they always cover ALL orders,
+   not just the ones already scrolled into view. #}
 {% if readonly %}
 {% set t = {
-  'title':'စစ်ထုတ်ရန်','filter':'စစ်ထုတ်','search':'ဖောက်သည်ရှာရန်…','date':'ရက်စွဲ','day':'ရက်','month':'လ','year':'နှစ်',
-  'source':'နေရာ','allSources':'အားလုံး','payment':'ငွေပေးချေမှု','all':'အားလုံး','paid':'ပေးပြီး','unpaid':'မပေးရသေး',
-  'apply':'အတည်ပြု','reset':'ရှင်းမည်','markPaid':'ငွေရှင်းမည်','receiverTitle':'ငွေလက်ခံသူ','methodTitle':'ငွေပေးနည်း',
-  'pickDay':'ရက်စွဲ ရွေးပါ','pickMonth':'လ ရွေးပါ','pickYear':'နှစ် ရွေးပါ','fail':'မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။',
-  'orders':'အော်ဒါ','daysUnit':'ရက်','totalUnit':'MMK','time':'အချိန်','note':'မှတ်ချက်','sourceLbl':'နေရာ',
-  'wrapper':'ပန်းစည်းစည်းသူ','noOrders':'မှတ်တမ်း မရှိသေးပါ။','noMatch':'မတွေ့ပါ။','edit':'ပြင်','del':'ဖျက်'
+  'orders':'အော်ဒါ','daysUnit':'ရက်','totalUnit':'MMK စုစုပေါင်း',
+  'panelTitle':'စစ်ထုတ်ရန်','period':'ကာလ','day':'ရက်','month':'လ','year':'နှစ်',
+  'search':'ဖောက်သည်အမည် ရှာရန်…','found':'ခု တွေ့သည်','noMatch':'မတွေ့ပါ။','noOrders':'မှတ်တမ်း မရှိသေးပါ။',
+  'source':'နေရာ','allSources':'အားလုံး','paid':'ပေးပြီး','unpaid':'မပေးရသေး','all':'အားလုံး','payment':'ငွေပေးချေမှု',
+  'pickDay':'ရက်စွဲ ရွေးပါ','pickMonth':'လ ရွေးပါ','pickYear':'နှစ် ရွေးပါ',
+  'markPaid':'ငွေရှင်းမည်','receiverTitle':'ငွေလက်ခံသူ','methodTitle':'ငွေပေးနည်း',
+  'fail':'မအောင်မြင်ပါ။ ထပ်ကြိုးစားပါ။','more':'ထပ်ကြည့်ရန်','loading':'…','clear':'ရှင်းမည်'
 } %}
-{% set quickDay %}<div class="wp-quick-btn" data-offset="0">ယနေ့</div><div class="wp-quick-btn" data-offset="-1">မနေ့က</div><div class="wp-quick-btn" data-offset="-7">၁ ပတ်</div>{% endset %}
+{% set quickDay %}<div class="wp-quick-btn" data-offset="0">ယနေ့</div><div class="wp-quick-btn" data-offset="-1">မနေ့က</div><div class="wp-quick-btn" data-offset="-7">တစ်ပတ်ခန့်</div>{% endset %}
 {% else %}
 {% set t = {
-  'title':'筛选条件','filter':'筛选','search':'搜索客人姓名…','date':'日期','day':'日','month':'月','year':'年',
-  'source':'订单来源','allSources':'全部来源','payment':'付款状态','all':'全部','paid':'已付款','unpaid':'未付款',
-  'apply':'应用','reset':'重置','markPaid':'标记已付款','receiverTitle':'收款人 (Received by)','methodTitle':'付款方式 (Payment)',
-  'pickDay':'选择日期','pickMonth':'选择月份','pickYear':'选择年份','fail':'更新付款状态失败，请重试。',
-  'orders':'笔订单','daysUnit':'天','totalUnit':'MMK 合计','time':'时间','note':'备注','sourceLbl':'来源',
-  'wrapper':'包花员工','noOrders':'该筛选条件下暂无订单记录。','noMatch':'没有匹配的订单。','edit':'编辑','del':'删除'
+  'orders':'笔订单','daysUnit':'天','totalUnit':'MMK 合计',
+  'panelTitle':'筛选条件','period':'筛选周期','day':'日','month':'月','year':'年',
+  'search':'搜索客人姓名…','found':'笔订单','noMatch':'没有匹配的订单。','noOrders':'该筛选条件下暂无订单记录。',
+  'source':'订单来源','allSources':'全部来源','paid':'已付款','unpaid':'未付款','all':'全部','payment':'付款状态',
+  'pickDay':'选择日期','pickMonth':'选择月份','pickYear':'选择年份',
+  'markPaid':'标记已付款','receiverTitle':'收款人 (Received by)','methodTitle':'付款方式 (Payment)',
+  'fail':'操作失败，请重试。','more':'加载更多','loading':'…','clear':'清除'
 } %}
 {% set quickDay %}<div class="wp-quick-btn" data-offset="0">今天</div><div class="wp-quick-btn" data-offset="-1">昨天</div><div class="wp-quick-btn" data-offset="-7">一周前</div>{% endset %}
 {% endif %}
-{% set period = selected_day if view_mode == 'day' else (selected_month if view_mode == 'month' else selected_year) %}
-{% set active_count = (1 if selected_source else 0) + (1 if selected_paid else 0) %}
 
-<div class="p-3 sm:p-4 bg-stone-50/80 border-b border-stone-200/60 no-print font-sans relative z-10">
-    <form method="GET" action="{{ filter_action }}" id="dailyFilterForm">
-        <input type="hidden" name="view"   id="dfView"   value="{{ view_mode }}">
-        <input type="hidden" name="day"    id="dfDay"    value="{{ selected_day }}">
-        <input type="hidden" name="month"  id="dfMonth"  value="{{ selected_month }}">
-        <input type="hidden" name="year"   id="dfYear"   value="{{ selected_year }}">
-        <input type="hidden" name="source" id="dfSource" value="{{ selected_source or '' }}">
-        <input type="hidden" name="paid"   id="dfPaid"   value="{{ selected_paid or '' }}">
+<style>
+/* ---------- fan wrapper (sits above order cards, below modals/pickers) ---------- */
+.daily-filter-fanwrap {
+    position: fixed;
+    left: max(1.1rem, env(safe-area-inset-left));
+    bottom: max(1.1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+    z-index: 45;
+    width: 56px; height: 56px;
+    --fan-radius: 80px; --fan-btn-size: 48px; --fan-gap: 12px; --fan-sweep: 90deg;
+}
+body.of-open .daily-filter-fanwrap { display: none; }
 
-        <div class="flex items-center gap-2">
-            <button type="button" onclick="dfOpen()" class="shrink-0 inline-flex items-center gap-2 bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-4 rounded-xl transition-all">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5h18l-7 8v6l-4-2v-4L3 5z"/></svg>
-                <span>{{ t.filter }}</span>
-                {% if active_count %}<span class="bg-white text-stone-900 rounded-full text-[10px] font-bold px-1.5 py-0.5 leading-none">{{ active_count }}</span>{% endif %}
+/* ---------- main FAB: dark glass orb ---------- */
+.daily-filter-fab {
+    position: absolute; left: 0; bottom: 0; z-index: 5;
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; cursor: pointer; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.45);
+    background: radial-gradient(circle at 50% 30%, rgba(60,56,54,.98) 0%, rgba(30,26,25,.98) 60%, rgba(15,12,11,1) 100%);
+    box-shadow:
+        inset 0 3px 6px rgba(255,255,255,.75), inset 0 -6px 12px rgba(0,0,0,.8),
+        inset 0 -2px 8px rgba(255,248,240,.35),
+        0 12px 28px rgba(35,28,24,.45), 0 4px 10px rgba(0,0,0,.3);
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease;
+}
+.daily-filter-fab::before {
+    content: ""; position: absolute; width: 80%; height: 44%; left: 10%; top: 3%; border-radius: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,.95) 0%, rgba(255,255,255,.55) 40%, rgba(255,255,255,0) 100%);
+    pointer-events: none; z-index: 3;
+}
+.daily-filter-fab::after {
+    content: ""; position: absolute; bottom: 2%; left: 15%; width: 70%; height: 30%; border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(255,243,224,.35) 0%, transparent 70%);
+    filter: blur(2px); pointer-events: none; z-index: 2;
+}
+.daily-filter-fab:active { transform: scale(.9); }
+.daily-filter-fab svg { position: relative; z-index: 4; width: 23px; height: 23px; transition: transform .42s cubic-bezier(.34,1.56,.64,1); }
+.daily-filter-fab.df-open svg { transform: rotate(135deg); }
+
+.daily-filter-fab-dot {
+    position: absolute; top: 3px; right: 3px; width: 11px; height: 11px; border-radius: 50%;
+    background: #fbbf24; border: 2px solid rgba(255,255,255,.9); display: none; z-index: 5;
+    animation: df-dot-pulse 2s ease-in-out infinite;
+}
+.daily-filter-fab.has-active-filters .daily-filter-fab-dot { display: block; }
+@keyframes df-dot-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.5); } 50% { box-shadow: 0 0 0 5px rgba(251,191,36,0); } }
+
+/* ---------- backdrop ---------- */
+.daily-fan-backdrop {
+    position: fixed; inset: 0; z-index: 44; display: none;
+    background: rgba(255,255,255,.16);
+    backdrop-filter: blur(8px) saturate(130%); -webkit-backdrop-filter: blur(8px) saturate(130%);
+}
+.daily-fan-backdrop.active { display: block; }
+
+/* ---------- fan buttons: warm glass bubbles ---------- */
+.daily-fan-btn {
+    position: absolute; left: 4px; bottom: 4px; width: 48px; height: 48px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 19px; color: #1c1917;
+    cursor: pointer; overflow: hidden; z-index: 1;
+    background: radial-gradient(circle at 50% 35%, rgba(255,255,255,.95) 0%, rgba(253,250,246,.75) 50%, rgba(242,237,230,.85) 100%);
+    border: 1px solid rgba(255,255,255,.9);
+    box-shadow:
+        inset 0 3px 5px rgba(255,255,255,1), inset 0 -5px 10px rgba(195,185,175,.5),
+        inset 0 -1px 3px rgba(140,125,110,.35), 0 10px 24px rgba(50,40,30,.18), 0 3px 8px rgba(0,0,0,.08);
+    backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+    transform: translate(0,0) scale(.25) rotate(-18deg);
+    transform-origin: center center; opacity: 0; pointer-events: none;
+    transition: transform .48s cubic-bezier(.22,1.35,.36,1), opacity .22s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.daily-fan-btn::before {
+    content: ""; position: absolute; width: 76%; height: 42%; left: 12%; top: 4%; border-radius: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,.6) 45%, rgba(255,255,255,0) 100%);
+    pointer-events: none; z-index: 2;
+}
+.daily-fan-btn::after {
+    content: ""; position: absolute; width: 70%; height: 30%; left: 15%; bottom: 3%; border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(255,245,230,.8) 0%, transparent 75%);
+    filter: blur(1px); pointer-events: none; z-index: 1;
+}
+.daily-fan-btn > * { position: relative; z-index: 3; }
+.daily-filter-fanwrap.df-fan-open .daily-fan-btn {
+    opacity: 1; pointer-events: auto;
+    transform: translate(var(--fan-tx,0px), var(--fan-ty,0px)) scale(1) rotate(0deg);
+}
+.daily-fan-btn.fan-pos-0 { transition-delay: .02s; }
+.daily-fan-btn.fan-pos-1 { transition-delay: .06s; }
+.daily-fan-btn.fan-pos-2 { transition-delay: .10s; }
+.daily-fan-btn.fan-pos-3 { transition-delay: .14s; }
+.daily-filter-fanwrap:not(.df-fan-open) .daily-fan-btn { transition-delay: 0s; }
+.daily-fan-btn:active { transform: translate(var(--fan-tx,0px), var(--fan-ty,0px)) scale(.9) rotate(0deg); }
+
+.daily-fan-btn.state-yes {
+    background: radial-gradient(circle at 50% 35%, rgba(236,253,245,.95) 0%, rgba(209,250,229,.75) 60%, rgba(167,243,208,.85) 100%);
+    border-color: rgba(209,250,229,.95); color: #047857;
+}
+.daily-fan-btn.state-no {
+    background: radial-gradient(circle at 50% 35%, rgba(255,247,237,.95) 0%, rgba(254,215,170,.75) 60%, rgba(253,186,116,.85) 100%);
+    border-color: rgba(254,215,170,.95); color: #b45309;
+}
+.daily-fan-btn.state-active { box-shadow: inset 0 3px 6px rgba(255,255,255,1), inset 0 -5px 10px rgba(180,165,150,.6), 0 0 0 3px rgba(217,119,6,.25), 0 10px 24px rgba(50,40,30,.22); }
+
+/* ---------- small panel (period + search) ---------- */
+#dailyFilterModal {
+    position: fixed; inset: 0; z-index: 150; background: rgba(28,25,23,.45);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    align-items: center; justify-content: center; padding: 16px;
+}
+#dailyFilterPanel {
+    background: #fdfcfb; width: 100%; max-width: 420px; max-height: min(85vh,640px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch; border-radius: 22px;
+    box-shadow: 0 25px 60px rgba(28,25,23,.28); padding: 20px;
+}
+.df-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.df-panel-title { font-family: 'Playfair Display','Noto Serif SC',serif; font-weight: 700; font-size: 17px; color: #1c1917; }
+.df-close-btn {
+    width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: #f5f5f4; color: #57534e; border: none; cursor: pointer;
+    transition: background-color .15s ease, transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.df-close-btn:hover { background: #e7e5e4; transform: rotate(90deg); }
+
+/* ---------- active-filter chips ---------- */
+.df-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 11px; border-radius: 9999px;
+    font-size: 11px; font-weight: 600; color: #44403c; background: #fff; border: 1px solid #e7e5e4;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.df-chip.is-static { padding-right: 11px; }
+.df-chip button {
+    width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; background: #f5f5f4; color: #78716c;
+    font-size: 10px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.df-chip button:hover { background: #e7e5e4; color: #1c1917; }
+
+/* ---------- toast ---------- */
+.df-toast {
+    position: fixed; left: 50%; bottom: 96px; transform: translate(-50%, 12px); z-index: 160;
+    background: rgba(28,25,23,.92); color: #fff; padding: 9px 16px; border-radius: 9999px;
+    font-size: 12.5px; font-weight: 600; opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+}
+.df-toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+
+<!-- ===================== summary line ===================== -->
+<div class="px-4 py-3 sm:px-5 bg-stone-50/80 border-b border-stone-200/60 no-print font-sans">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-numeric text-stone-600">
+        <span><strong class="text-stone-900" id="summaryOrderCount">{{ total_orders }}</strong> {{ t.orders }}</span>
+        {% if show_payment %}
+        <span><strong class="text-stone-900" id="summaryRevenue">{{ "{:,}".format(total_revenue) }}</strong> {{ t.totalUnit }}</span>
+        {% endif %}
+        <span><strong class="text-stone-900" id="summaryDayCount">{{ day_count }}</strong> {{ t.daysUnit }}</span>
+    </div>
+    <div id="dfChips" class="flex flex-wrap gap-1.5 mt-2"></div>
+    <div id="dailySearchStatus" class="hidden text-xs text-stone-500 mt-1.5"></div>
+</div>
+
+<!-- ===================== order cards ===================== -->
+<div id="ordersRoot" class="p-3 sm:p-5 pb-4">
+    {% include 'partials/daily_records_groups.html' %}
+</div>
+
+<div id="ordersEmpty" class="{% if orders_by_day %}hidden {% endif %}text-center py-16 text-stone-400 italic text-sm">{{ t.noOrders }}</div>
+<div id="dailyNoMatch" class="hidden text-center py-16 text-stone-400 italic text-sm">{{ t.noMatch }}</div>
+
+<div id="lzSentinel" class="no-print text-center pb-24 pt-2 {% if not has_more %}hidden{% endif %}">
+    <button type="button" id="lzMoreBtn" onclick="lzLoadMore()" class="text-xs font-semibold tracking-wider text-stone-500 bg-stone-100 hover:bg-stone-200 rounded-full px-5 py-2.5">{{ t.more }}</button>
+</div>
+
+<!-- ===================== filter panel (period + search) ===================== -->
+<div id="dailyFilterModal" class="hidden no-print font-sans">
+    <div id="dailyFilterPanel">
+        <div class="df-panel-header">
+            <span class="df-panel-title">{{ t.panelTitle }}</span>
+            <button type="button" class="df-close-btn" onclick="closeDailyFilterPanel()" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
+        </div>
 
-            <div class="relative flex-1">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path stroke-linecap="round" d="m20 20-4-4"></path></svg>
+        <div class="space-y-2">
+            <span class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">📅 {{ t.period }}</span>
+            <div class="flex rounded-xl overflow-hidden border border-stone-200 text-xs font-semibold">
+                <button type="button" data-df-view="day"   onclick="dfSetView('day')">{{ t.day }}</button>
+                <button type="button" data-df-view="month" onclick="dfSetView('month')">{{ t.month }}</button>
+                <button type="button" data-df-view="year"  onclick="dfSetView('year')">{{ t.year }}</button>
+            </div>
+            <button type="button" id="dfDateBtn" class="wp-trigger text-xs p-3" onclick="dfPickDate()">
+                <span></span>
+                <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            </button>
+        </div>
+
+        <div class="space-y-2 pt-4 mt-4 border-t border-stone-200/60">
+            <span class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">🔍 {{ t.search }}</span>
+            <div class="relative">
+                <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path stroke-linecap="round" d="m20 20-4-4"></path></svg>
                 <input type="search" id="dailyCustomerSearch" autocomplete="off" placeholder="{{ t.search }}"
-                    class="w-full h-10 pl-9 pr-3 rounded-xl border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 outline-none focus:border-stone-400">
+                    class="w-full h-11 pl-10 pr-10 rounded-xl border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-900/5">
+                <button type="button" id="clearDailyCustomerSearch" aria-label="{{ t.clear }}"
+                    class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 items-center justify-center rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100">✕</button>
             </div>
-        </div>
-
-        <div class="flex flex-wrap gap-1.5 mt-2.5 text-[11px] font-semibold text-stone-600">
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-stone-200">📅 {{ period }}</span>
-            {% if selected_source %}<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-stone-200">🏷️ {{ selected_source }}</span>{% endif %}
-            {% if selected_paid == 'paid' %}<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-stone-200">✅ {{ t.paid }}</span>{% endif %}
-            {% if selected_paid == 'unpaid' %}<span class="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-stone-200">⏳ {{ t.unpaid }}</span>{% endif %}
-            {% if active_count %}<a href="{{ filter_action }}?view={{ view_mode }}&{{ view_mode }}={{ period }}" class="inline-flex items-center px-2.5 py-1 rounded-full text-rose-600 hover:bg-rose-50">✕ {{ t.reset }}</a>{% endif %}
-        </div>
-    </form>
-
-    <div class="flex flex-wrap gap-4 mt-3 pt-3 border-t border-stone-200/60 text-xs font-numeric text-stone-600">
-        <span><strong class="text-stone-900">{{ total_orders }}</strong> {{ t.orders }}</span>
-        {% if show_payment %}<span><strong class="text-stone-900">{{ "{:,}".format(total_revenue) }}</strong> {{ t.totalUnit }}</span>{% endif %}
-        <span><strong class="text-stone-900">{{ orders_by_day|length }}</strong> {{ t.daysUnit }}</span>
-    </div>
-</div>
-
-<!-- Filter sheet (z-index below the pickers so they can open on top of it) -->
-<div class="wp-overlay no-print" id="dfOverlay" style="z-index:150" onclick="if(event.target===this) dfClose()">
-    <div class="wp-sheet">
-        <div class="wp-title">{{ t.title }}</div>
-
-        <div class="space-y-4 mb-5">
-            <div>
-                <div class="text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">📅 {{ t.date }}</div>
-                <div class="flex rounded-xl overflow-hidden border border-stone-200 text-xs font-semibold mb-2">
-                    <button type="button" data-df-view="day"   onclick="dfSetView('day')">{{ t.day }}</button>
-                    <button type="button" data-df-view="month" onclick="dfSetView('month')">{{ t.month }}</button>
-                    <button type="button" data-df-view="year"  onclick="dfSetView('year')">{{ t.year }}</button>
-                </div>
-                <button type="button" id="dfDateBtn" class="wp-trigger text-xs p-3" onclick="dfPickDate()">
-                    <span></span>
-                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-                </button>
-            </div>
-
-            <div>
-                <div class="text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">🏷️ {{ t.source }}</div>
-                <button type="button" id="dfSourceBtn" class="wp-trigger text-xs p-3" onclick="dfPickSource()">
-                    <span></span>
-                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-            </div>
-
-            <div>
-                <div class="text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">💰 {{ t.payment }}</div>
-                <div class="flex rounded-xl overflow-hidden border border-stone-200 text-xs font-semibold">
-                    <button type="button" data-df-paid=""       onclick="dfSetPaid('')">{{ t.all }}</button>
-                    <button type="button" data-df-paid="paid"   onclick="dfSetPaid('paid')">✅ {{ t.paid }}</button>
-                    <button type="button" data-df-paid="unpaid" onclick="dfSetPaid('unpaid')">⏳ {{ t.unpaid }}</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="wp-actions">
-            <button type="button" class="wp-btn wp-btn-cancel" onclick="dfReset()">{{ t.reset }}</button>
-            <button type="button" class="wp-btn wp-btn-set" onclick="dfApply()">{{ t.apply }}</button>
         </div>
     </div>
 </div>
 
-<div id="ordersRoot" class="p-3 sm:p-5">
-    {% for day_group in orders_by_day %}
-    <div class="day-group mb-6 last:mb-0">
-        <div class="day-separator">
-            <span class="day-separator-date">{{ day_group.date_display }}</span>
-            <span class="day-separator-meta">{{ day_group.order_count }} {{ t.orders }}{% if show_payment %} · {{ "{:,}".format(day_group.day_total) }} MMK{% endif %}</span>
-        </div>
+<!-- ===================== speed dial ===================== -->
+<div id="dailyFilterFanWrap" class="daily-filter-fanwrap no-print">
+    <button type="button" id="fanPaidBtn" class="daily-fan-btn fan-pos-0" onclick="cycleFanPaid()" title="{{ t.payment }}" aria-label="{{ t.payment }}">💰</button>
+    <button type="button" id="fanSearchBtn" class="daily-fan-btn fan-pos-1" onclick="onFanSearchClick()" title="{{ t.search }}" aria-label="{{ t.search }}">🔍</button>
+    <button type="button" id="fanSourceBtn" class="daily-fan-btn fan-pos-2" onclick="onFanSourceClick()" title="{{ t.source }}" aria-label="{{ t.source }}">🏷️</button>
+    <button type="button" id="fanPeriodBtn" class="daily-fan-btn fan-pos-3" onclick="onFanPeriodClick()" title="{{ t.period }}" aria-label="{{ t.period }}">📅</button>
 
-        <div class="orders-grid">
-            {% for order in day_group.orders %}
-            {% set pay_text %}{% if order.is_paid %}{{ t.paid }}{% if order.received_by %} · {{ order.received_by }}{% endif %}{% if order.payment_method %} · {{ order.payment_method }}{% endif %}{% else %}{{ t.markPaid }}{% endif %}{% endset %}
-            <div class="order-card"
-                id="order-card-{{ order.id }}"
-                data-date="{{ order.date }}"
-                data-customer="{{ order.customer }}"
-                data-source="{{ order.source }}"
-                data-time="{{ order.time }}"
-                data-address="{{ order.address }}"
-                data-total="{{ order.total_price }}"
-                data-wrapped-by="{{ order.wrapped_by }}"
-                data-paid="{{ 'true' if order.is_paid else 'false' }}">
-
-                <div class="oc-header">
-                    <div class="oc-header-main">
-                        <div class="oc-date">{{ order.date }}</div>
-                        <div class="oc-customer">{{ order.customer }}</div>
-                        <div class="oc-source">{{ t.sourceLbl }}: {{ order.source }}</div>
-                    </div>
-                    <div class="oc-total-wrap">
-                        <div class="oc-total">{{ "{:,}".format(order.total_price) }} MMK</div>
-                        {% if can_mark_paid %}
-                        <label class="oc-payment-toggle no-print {% if order.is_paid %}is-paid{% endif %}">
-                            <input type="checkbox" class="oc-payment-checkbox" {% if order.is_paid %}checked{% endif %}
-                                data-order-id="{{ order.id }}" onchange="handlePaymentCheckboxChange(this)">
-                            <span class="oc-payment-toggle-label">{{ pay_text|trim }}</span>
-                        </label>
-                        <div class="oc-payment-badge print-only {{ 'oc-paid' if order.is_paid else 'oc-unpaid' }}">{{ '✅ ' if order.is_paid else '⏳ ' }}{{ pay_text|trim }}</div>
-                        {% else %}
-                        <div class="oc-payment-badge {{ 'oc-paid' if order.is_paid else 'oc-unpaid' }}">{{ '✅ ' if order.is_paid else '⏳ ' }}{{ pay_text|trim }}</div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="oc-items">
-                    {% for item in order.items %}
-                    <div class="oc-item" data-item-name="{{ item.item_name }}" data-price="{{ item.price }}" data-remarks="{{ item.remarks }}">
-                        <div class="oc-item-meta">
-                            <div class="oc-item-name">💐 {{ item.item_name }}</div>
-                            {% if item.remarks and item.remarks != '-' and item.remarks != '' %}
-                            <div class="oc-item-remarks">{{ t.note }}: {{ item.remarks }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                <div class="oc-footer">
-                    <div class="oc-footer-text">
-                        <span class="oc-time">{{ t.time }}: {{ order.time }}</span>
-                        <span class="oc-address">{{ order.address }}</span>
-                        {% if order.wrapped_by and order.wrapped_by != '' %}
-                        <span class="oc-wrapped-by">🎀 {{ t.wrapper }}: {{ order.wrapped_by }}</span>
-                        {% endif %}
-                    </div>
-                    <div class="oc-actions no-print">
-                        <button type="button" onclick='openEditModal({{ order.to_dict()|tojson }})' class="oc-action-btn oc-action-edit">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                            <span>{{ t.edit }}</span>
-                        </button>
-                        <button type="button" onclick='openDeleteModal({{ order.id|tojson }}, {{ order.customer|tojson }}, {{ order.date|tojson }})' class="oc-action-btn oc-action-delete">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            <span>{{ t.del }}</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% else %}
-    <div class="text-center py-16 text-stone-400 italic text-sm">{{ t.noOrders }}</div>
-    {% endfor %}
+    <button type="button" id="dailyFilterFabBtn" class="daily-filter-fab" onclick="toggleDailyFan()" aria-label="{{ t.panelTitle }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        <span class="daily-filter-fab-dot"></span>
+    </button>
 </div>
+<div class="daily-fan-backdrop no-print" id="dailyFanBackdrop" onclick="closeDailyFan()"></div>
+<div class="df-toast no-print" id="dfToast"></div>
 
 <script>
 const DF_T = {{ t|tojson|safe }};
 const DF_YEARS = {{ available_years|tojson|safe }};
 const DF_QUICK_DAY = {{ quickDay|tojson|safe }};
-const DF_INIT = {
+const DF_HIGHLIGHT = {{ (highlight_id or 0)|tojson|safe }};
+const $id = (id) => document.getElementById(id);
+
+/* ================= filter state (all filters run on the server) ================= */
+const DF = {
     view: {{ view_mode|tojson|safe }}, day: {{ selected_day|tojson|safe }},
     month: {{ selected_month|tojson|safe }}, year: {{ selected_year|tojson|safe }},
     source: {{ (selected_source or '')|tojson|safe }}, paid: {{ (selected_paid or '')|tojson|safe }}
 };
-const DF = Object.assign({}, DF_INIT);
-const DF_SEG = 'flex-1 px-3 py-2.5 transition-all ';
-const DF_ON = 'bg-stone-900 text-white', DF_OFF = 'bg-white text-stone-500 hover:bg-stone-50';
+const LZ = { offset: {{ next_offset }}, hasMore: {{ 'true' if has_more else 'false' }}, loading: false, promise: null, gen: 0 };
 
-function dfDateLabel() {
+function dfParams() {
+    const p = new URLSearchParams({ view: DF.view, day: DF.day, month: DF.month, year: DF.year });
+    if (DF.source) p.set('source', DF.source);
+    if (DF.paid) p.set('paid', DF.paid);
+    return p;
+}
+function dfPeriodLabel() {
     if (DF.view === 'day') return wpFormatDisplayFromISO(DF.day);
     return DF.view === 'month' ? DF.month : DF.year;
 }
-function dfSetTrigger(id, text, empty) {
-    const b = document.getElementById(id);
-    b.querySelector('span').textContent = text;
-    b.classList.toggle('wp-empty', !!empty);
-}
-function dfRender() {
-    document.querySelectorAll('[data-df-view]').forEach(b => { b.className = DF_SEG + (b.dataset.dfView === DF.view ? DF_ON : DF_OFF); });
-    document.querySelectorAll('[data-df-paid]').forEach(b => { b.className = DF_SEG + (b.dataset.dfPaid === DF.paid ? DF_ON : DF_OFF); });
-    dfSetTrigger('dfDateBtn', dfDateLabel(), false);
-    dfSetTrigger('dfSourceBtn', DF.source || DF_T.allSources, !DF.source);
-}
-function dfOpen() {
-    Object.assign(DF, DF_INIT);
-    dfRender();
-    document.getElementById('dfOverlay').classList.add('active');
-    wpLockBody();
-}
-function dfClose() { closeWheelOverlay('dfOverlay'); }
-function dfSetView(v) { DF.view = v; dfRender(); }
-function dfSetPaid(v) { DF.paid = v; dfRender(); }
+function dfPaidLabel(v) { return v === 'paid' ? DF_T.paid : (v === 'unpaid' ? DF_T.unpaid : DF_T.all); }
+function setText(id, v) { const el = $id(id); if (el) el.textContent = v; }
 
-function dfPickDate() {
-    if (DF.view === 'day') {
-        openDateWheelPicker({ title: DF_T.pickDay, quickHtml: DF_QUICK_DAY, initialValue: DF.day,
-            onConfirm: (v) => { DF.day = v; dfRender(); } });
-    } else if (DF.view === 'month') {
-        openMonthWheelPicker({ title: DF_T.pickMonth, initialValue: DF.month,
-            onConfirm: (v) => { DF.month = v; dfRender(); } });
-    } else {
-        openYearListPicker({ title: DF_T.pickYear, years: DF_YEARS, initialValue: DF.year,
-            onConfirm: (v) => { DF.year = v; dfRender(); } });
+/* ================= toast ================= */
+let _toastTimer = null;
+function dfToast(text) {
+    const el = $id('dfToast');
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+/* ================= chips + indicators ================= */
+function dfRenderChips() {
+    const box = $id('dfChips');
+    box.innerHTML = '';
+    const add = (text, onRemove) => {
+        const c = document.createElement('span');
+        c.className = 'df-chip' + (onRemove ? '' : ' is-static');
+        c.appendChild(document.createTextNode(text));
+        if (onRemove) {
+            const b = document.createElement('button');
+            b.type = 'button'; b.textContent = '✕'; b.setAttribute('aria-label', DF_T.clear);
+            b.onclick = onRemove;
+            c.appendChild(b);
+        }
+        box.appendChild(c);
+    };
+    add('📅 ' + dfPeriodLabel(), null);
+    if (DF.source) add('🏷️ ' + DF.source, () => { DF.source = ''; dfRefresh(); });
+    if (DF.paid) add((DF.paid === 'paid' ? '✅ ' : '⏳ ') + dfPaidLabel(DF.paid), () => { DF.paid = ''; dfRefresh(); });
+}
+function dfIndicator() {
+    const q = ($id('dailyCustomerSearch').value || '').trim();
+    $id('dailyFilterFabBtn').classList.toggle('has-active-filters', !!(DF.source || DF.paid || q));
+    const paidBtn = $id('fanPaidBtn');
+    paidBtn.classList.toggle('state-yes', DF.paid === 'paid');
+    paidBtn.classList.toggle('state-no', DF.paid === 'unpaid');
+    $id('fanSourceBtn').classList.toggle('state-active', !!DF.source);
+    $id('fanSearchBtn').classList.toggle('state-active', !!q);
+}
+
+/* ================= refresh (page 1 of the current filters) ================= */
+async function dfRefresh() {
+    const root = $id('ordersRoot');
+    root.style.opacity = '.45'; root.style.pointerEvents = 'none';
+    LZ.gen++;
+    try {
+        const p = dfParams(); p.set('offset', '0');
+        const res = await fetch('/api/daily_chunk?' + p.toString(), { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        root.innerHTML = data.html;
+        LZ.offset = data.next_offset; LZ.hasMore = data.has_more;
+        lzSyncSentinel();
+        $id('ordersEmpty').classList.toggle('hidden', !!data.html.trim());
+
+        setText('summaryOrderCount', data.total_orders);
+        setText('summaryRevenue', Number(data.total_revenue || 0).toLocaleString());
+        setText('summaryDayCount', data.day_count);
+
+        if (typeof dailyExportParams !== 'undefined') dailyExportParams = data.export_params;   // PDF export follows the filter
+        if (typeof dailyExportLabel !== 'undefined') dailyExportLabel = data.period_value;
+
+        history.replaceState({}, '', '?' + dfParams().toString());
+        dfRenderChips(); dfIndicator(); dfRenderPanel(); applySearch(); lzMaybeLoad();
+    } catch (err) {
+        console.error(err);
+        alert(DF_T.fail + '\n' + (err.message || ''));
+    } finally {
+        root.style.opacity = ''; root.style.pointerEvents = '';
     }
 }
-function dfPickSource() {
+
+/* ================= lazy loading (infinite scroll) ================= */
+function lzSyncSentinel() { $id('lzSentinel').classList.toggle('hidden', !LZ.hasMore); }
+
+function lzLoadMore() {
+    if (LZ.loading) return LZ.promise;
+    if (!LZ.hasMore) return Promise.resolve(false);
+    LZ.loading = true;
+    const gen = LZ.gen;
+    $id('lzMoreBtn').textContent = DF_T.loading;
+    LZ.promise = (async () => {
+        try {
+            const p = dfParams(); p.set('offset', String(LZ.offset));
+            const res = await fetch('/api/daily_chunk?' + p.toString(), { credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (gen !== LZ.gen) return false;                       // filters changed meanwhile
+            $id('ordersRoot').insertAdjacentHTML('beforeend', data.html);
+            LZ.offset = data.next_offset; LZ.hasMore = data.has_more;
+            lzSyncSentinel(); applySearch();
+            return true;
+        } catch (e) {
+            console.error('Lazy load failed:', e);
+            return false;
+        } finally {
+            LZ.loading = false;
+            $id('lzMoreBtn').textContent = DF_T.more;
+        }
+    })();
+    return LZ.promise;
+}
+async function lzLoadAll() { while (LZ.hasMore) { const ok = await lzLoadMore(); if (!ok) break; } }
+window.lzLoadAll = lzLoadAll;
+
+function lzMaybeLoad() {
+    if (!LZ.hasMore || LZ.loading) return;
+    const r = $id('lzSentinel').getBoundingClientRect();
+    if (r.top < window.innerHeight + 600) lzLoadMore().then(ok => { if (ok) lzMaybeLoad(); });
+}
+window.addEventListener('scroll', lzMaybeLoad, { passive: true });
+window.addEventListener('resize', lzMaybeLoad);
+
+/* ================= customer search (client side; loads everything first) ================= */
+function applySearch() {
+    const input = $id('dailyCustomerSearch');
+    const q = (input.value || '').trim().toLowerCase();
+    const clearBtn = $id('clearDailyCustomerSearch');
+    clearBtn.classList.toggle('hidden', !q); clearBtn.classList.toggle('flex', !!q);
+
+    let matched = 0, total = 0;
+    document.querySelectorAll('#ordersRoot .day-group').forEach(g => {
+        let vis = 0;
+        g.querySelectorAll('.order-card').forEach(c => {
+            total++;
+            const ok = !q || (c.dataset.customer || '').toLowerCase().includes(q);
+            c.classList.toggle('hidden', !ok);
+            if (ok) { vis++; matched++; }
+        });
+        g.classList.toggle('hidden', vis === 0);
+    });
+    const st = $id('dailySearchStatus');
+    st.classList.toggle('hidden', !q);
+    st.textContent = q ? (matched + ' ' + DF_T.found) : '';
+    $id('dailyNoMatch').classList.toggle('hidden', !(q && total > 0 && matched === 0));
+    dfIndicator();
+}
+document.addEventListener('DOMContentLoaded', () => {
+    const input = $id('dailyCustomerSearch');
+    input.addEventListener('input', async () => {
+        if (input.value.trim() && LZ.hasMore) await lzLoadAll();
+        applySearch();
+    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape' && input.value) { input.value = ''; applySearch(); } });
+    $id('clearDailyCustomerSearch').addEventListener('click', () => { input.value = ''; input.focus(); applySearch(); });
+});
+
+/* ================= speed dial: layout + open/close ================= */
+function layoutDailyFan() {
+    const wrap = $id('dailyFilterFanWrap');
+    if (!wrap) return;
+    const buttons = Array.from(wrap.querySelectorAll('.daily-fan-btn'));
+    const n = buttons.length;
+    if (!n) return;
+    const cs = getComputedStyle(wrap);
+    const num = (name, fb) => { const v = parseFloat(cs.getPropertyValue(name)); return Number.isFinite(v) ? v : fb; };
+    const gap = Math.max(0, num('--fan-gap', 12));
+    const sweep = Math.max(0, num('--fan-sweep', 90));
+    let radius = Math.max(0, num('--fan-radius', 80));
+    const d = Math.max(buttons[0].offsetWidth, buttons[0].offsetHeight) || num('--fan-btn-size', 48);   // real size (not the scaled one)
+    if (n > 1 && sweep > 0) {
+        const half = Math.sin((sweep / (n - 1)) * Math.PI / 360);
+        if (half > 1e-6) radius = Math.max(radius, (d + gap) / (2 * half));
+    }
+    buttons.forEach((btn, i) => {
+        const th = (n > 1 ? i * sweep / (n - 1) : sweep / 2) * Math.PI / 180;
+        btn.style.setProperty('--fan-tx', (radius * Math.cos(th)).toFixed(2) + 'px');
+        btn.style.setProperty('--fan-ty', (-radius * Math.sin(th)).toFixed(2) + 'px');
+    });
+}
+let _dfResizeTimer = null;
+window.addEventListener('resize', () => { clearTimeout(_dfResizeTimer); _dfResizeTimer = setTimeout(layoutDailyFan, 150); });
+
+/* move fixed elements to <body> so no ancestor transform can trap them */
+document.addEventListener('DOMContentLoaded', () => {
+    ['dailyFilterFanWrap', 'dailyFilterModal', 'dailyFanBackdrop', 'dfToast'].forEach(id => {
+        const el = $id(id);
+        if (el && el.parentNode !== document.body) document.body.appendChild(el);
+    });
+    requestAnimationFrame(layoutDailyFan);
+    $id('dailyFilterModal').addEventListener('click', (e) => { if (e.target === $id('dailyFilterModal')) closeDailyFilterPanel(); });
+    dfRenderChips(); dfIndicator(); dfRenderPanel(); lzMaybeLoad();
+});
+
+let _dfFanOpen = false, _dfModalOpen = false;
+function toggleDailyFan() { _dfFanOpen ? closeDailyFan() : openDailyFan(); }
+function openDailyFan() {
+    layoutDailyFan();
+    _dfFanOpen = true;
+    $id('dailyFilterFanWrap').classList.add('df-fan-open');
+    $id('dailyFilterFabBtn').classList.add('df-open');
+    $id('dailyFanBackdrop').classList.add('active');
+    document.addEventListener('keydown', _dfEsc);
+}
+function closeDailyFan() {
+    if (!_dfFanOpen) return;
+    _dfFanOpen = false;
+    $id('dailyFilterFanWrap').classList.remove('df-fan-open');
+    $id('dailyFilterFabBtn').classList.remove('df-open');
+    $id('dailyFanBackdrop').classList.remove('active');
+    document.removeEventListener('keydown', _dfEsc);
+}
+function openDailyFilterPanel() {
+    _dfModalOpen = true;
+    dfRenderPanel();
+    const m = $id('dailyFilterModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', _dfEsc);
+}
+function closeDailyFilterPanel() {
+    _dfModalOpen = false;
+    const m = $id('dailyFilterModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', _dfEsc);
+}
+function _dfEsc(e) {
+    if (e.key !== 'Escape') return;
+    if (_dfModalOpen) closeDailyFilterPanel();
+    if (_dfFanOpen) closeDailyFan();
+}
+
+/* ================= fan button actions ================= */
+function cycleFanPaid() {
+    const next = DF.paid === '' ? 'paid' : (DF.paid === 'paid' ? 'unpaid' : '');
+    DF.paid = next;
+    dfToast('💰 ' + dfPaidLabel(next));
+    dfRefresh();
+}
+function onFanSearchClick() {
+    closeDailyFan(); openDailyFilterPanel();
+    setTimeout(() => $id('dailyCustomerSearch').focus(), 150);
+}
+function onFanPeriodClick() { closeDailyFan(); openDailyFilterPanel(); }
+function onFanSourceClick() {
+    closeDailyFan();
     openListPicker({
         title: DF_T.source,
         options: [{ label: DF_T.allSources, value: '' }, ...WP_SOURCE_OPTIONS],
         selected: DF.source,
-        onPick: (v) => { DF.source = v; dfRender(); }
+        onPick: (v) => { DF.source = v; dfToast('🏷️ ' + (v || DF_T.allSources)); dfRefresh(); }
     });
 }
-function dfApply() {
-    document.getElementById('dfView').value = DF.view;
-    document.getElementById('dfDay').value = DF.day;
-    document.getElementById('dfMonth').value = DF.month;
-    document.getElementById('dfYear').value = DF.year;
-    document.getElementById('dfSource').value = DF.source;
-    document.getElementById('dfPaid').value = DF.paid;
-    document.getElementById('dailyFilterForm').submit();
-}
-function dfReset() { window.location.href = {{ filter_action|tojson|safe }}; }
 
-/* ---------- customer name search (client side) ---------- */
-document.addEventListener('DOMContentLoaded', function () {
-    const input = document.getElementById('dailyCustomerSearch');
-    if (!input) return;
-    input.addEventListener('input', function () {
-        const q = input.value.trim().toLowerCase();
-        let matched = 0;
-        document.querySelectorAll('#ordersRoot .day-group').forEach(group => {
-            let visible = 0;
-            group.querySelectorAll('.order-card').forEach(card => {
-                const ok = !q || (card.dataset.customer || '').toLowerCase().includes(q);
-                card.classList.toggle('hidden', !ok);
-                if (ok) { visible++; matched++; }
-            });
-            group.classList.toggle('hidden', visible === 0);
-        });
-        let nr = document.getElementById('dailyNoResults');
-        if (q && matched === 0) {
-            if (!nr) {
-                nr = document.createElement('div');
-                nr.id = 'dailyNoResults';
-                nr.className = 'text-center py-16 text-stone-400 italic text-sm';
-                nr.textContent = DF_T.noMatch;
-                document.getElementById('ordersRoot').appendChild(nr);
-            }
-            nr.classList.remove('hidden');
-        } else if (nr) { nr.classList.add('hidden'); }
+/* ================= period panel ================= */
+const DF_SEG = 'flex-1 px-3 py-2.5 transition-all ';
+function dfRenderPanel() {
+    document.querySelectorAll('[data-df-view]').forEach(b => {
+        b.className = DF_SEG + (b.dataset.dfView === DF.view ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50');
     });
-});
+    const span = $id('dfDateBtn').querySelector('span');
+    span.textContent = dfPeriodLabel();
+}
+function dfSetView(v) { DF.view = v; dfRenderPanel(); dfRefresh(); }
+function dfPickDate() {
+    if (DF.view === 'day') {
+        openDateWheelPicker({ title: DF_T.pickDay, quickHtml: DF_QUICK_DAY, initialValue: DF.day,
+            onConfirm: (v) => { DF.day = v; dfRefresh(); } });
+    } else if (DF.view === 'month') {
+        openMonthWheelPicker({ title: DF_T.pickMonth, initialValue: DF.month,
+            onConfirm: (v) => { DF.month = v; dfRefresh(); } });
+    } else {
+        openYearListPicker({ title: DF_T.pickYear, years: DF_YEARS, initialValue: DF.year,
+            onConfirm: (v) => { DF.year = v; dfRefresh(); } });
+    }
+}
 
-/* ---------- restore scroll / highlight after edit or delete ---------- */
-document.addEventListener('DOMContentLoaded', function () {
-    let anchorId = null, scrollYRaw = null;
+/* ================= highlight / restore scroll after add, edit, delete ================= */
+document.addEventListener('DOMContentLoaded', () => {
+    let anchorId = DF_HIGHLIGHT ? String(DF_HIGHLIGHT) : null, scrollY = null;
     try {
-        anchorId = sessionStorage.getItem('mc_restore_order_id');
-        scrollYRaw = sessionStorage.getItem('mc_restore_scroll_y');
+        anchorId = sessionStorage.getItem('mc_restore_order_id') || anchorId;
+        scrollY = sessionStorage.getItem('mc_restore_scroll_y');
         sessionStorage.removeItem('mc_restore_order_id');
         sessionStorage.removeItem('mc_restore_scroll_y');
     } catch (e) {}
+
+    if (DF_HIGHLIGHT) history.replaceState({}, '', '?' + dfParams().toString());   // drop ?highlight= from the address bar
+
     if (anchorId) {
-        const el = document.getElementById('order-card-' + anchorId);
+        const el = $id('order-card-' + anchorId);
         if (el) {
             requestAnimationFrame(() => {
                 el.scrollIntoView({ block: 'center' });
-                el.style.transition = 'box-shadow .4s ease';
-                el.style.boxShadow = '0 0 0 3px rgba(5,150,105,.45)';
-                setTimeout(() => { el.style.boxShadow = ''; }, 1200);
+                el.style.transition = 'box-shadow .5s ease';
+                el.style.boxShadow = '0 0 0 3px rgba(5,150,105,.55), 0 12px 28px rgba(5,150,105,.18)';
+                setTimeout(() => { el.style.boxShadow = ''; }, 2200);
             });
             return;
         }
     }
-    if (scrollYRaw) window.scrollTo(0, parseInt(scrollYRaw, 10) || 0);
+    if (scrollY) window.scrollTo(0, parseInt(scrollY, 10) || 0);
 });
 
-/* ---------- paid tick: who received -> KPay/Cash -> save ---------- */
+/* ================= paid tick: who received -> KPay/Cash -> save ================= */
 const PAY_RECEIVERS = ['Ko Kyaw', 'Iris', 'Other'];
 const PAY_METHODS = ['KPay', 'Cash'];
 
 function payText(d) {
     return d.is_paid ? [DF_T.paid, d.received_by, d.payment_method].filter(Boolean).join(' · ') : DF_T.markPaid;
 }
-
 function handlePaymentCheckboxChange(cb) {
     const orderId = cb.getAttribute('data-order-id');
-    if (!cb.checked) {                      // un-tick -> back to unpaid
-        submitPaymentUpdate(orderId, false, '', '', cb);
-        return;
-    }
-    cb.checked = false;                     // only really ticked after the server confirms
+    if (!cb.checked) { submitPaymentUpdate(orderId, false, '', '', cb); return; }   // un-tick -> unpaid
+    cb.checked = false;                     // becomes ticked only after the server confirms
     openListPicker({
         title: DF_T.receiverTitle,
         options: PAY_RECEIVERS,
@@ -340,7 +596,6 @@ function handlePaymentCheckboxChange(cb) {
         }
     });
 }
-
 async function submitPaymentUpdate(orderId, isPaid, who, method, cb) {
     cb.disabled = true;
     try {

@@ -1,12 +1,5 @@
-{# Manager-only: standalone wrapper (包花员工) manager. Same structure as the source picker. #}
-<style>
-    #wmOverlay { align-items: center; padding: 16px; }
-    #wmOverlay .wp-sheet {
-        border-radius: 20px; transform: translateY(16px); opacity: 0;
-        max-height: calc(100dvh - 32px); overflow-y: auto;
-    }
-    #wmOverlay.active .wp-sheet { transform: none; opacity: 1; }
-</style>
+{# Manager-only: standalone wrapper (包花员工) manager. Same structure as the source picker.
+   Opened by the 🎀 icon in the daily page header (wmOpen()). #}
 <div class="wp-overlay" id="wmOverlay" onclick="if(event.target===this) wmClose()">
     <div class="wp-sheet">
         <div class="wp-title">包花员工管理 (Manage Wrappers)</div>
@@ -98,10 +91,9 @@ async function wmCall(method, url, body) {
         throw new Error(data.error === 'Already exists' ? '这个名字已经存在。' : (data.error || ('HTTP ' + res.status)));
     }
     const r = await fetch('/api/wrappers', { credentials: 'same-origin' });
-    OF_WRAPPERS = (await r.json()).wrappers || [];
+    OF_WRAPPERS = (await r.json()).wrappers || [];   // the order form's wrapper picker reads this list
     wmEditingId = null; wmDeletingId = null;
     wmRender();
-    if (typeof ofRefreshWrapperSelects === 'function') ofRefreshWrapperSelects();   // update dropdowns in the order form
 }
 async function wmAdd() {
     const input = document.getElementById('wmNew');
