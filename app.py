@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, g
 from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 from flask_sqlalchemy import SQLAlchemy
@@ -175,11 +175,14 @@ def manager_required(f):
 def _is_manager():
     return session.get('role') == 'manager'
 
-def _role_home_redirect():
-    """Send the user back to whichever daily view matches their role."""
-    if session.get('role') == 'staff':
-        return redirect(url_for('staff_view'))
-    return redirect(url_for('index'))
+def _role_home_redirect(order_date=None, order_id=None):
+    """Send the user back to whichever daily view matches their role.
+    After add/edit we jump to that order's day and highlight its card,
+    so the saved order is always visible (no hidden-by-date surprises)."""
+    endpoint = 'staff_view' if session.get('role') == 'staff' else 'index'
+    if order_date and order_id:
+        return redirect(url_for(endpoint, view='day', day=order_date, highlight=order_id))
+    return redirect(url_for(endpoint))
 
 # ==========================================
 # AUTHENTICATION ROUTES
@@ -324,6 +327,7 @@ def _available_years():
 
 PRICE_FILTER_MIN = 0
 PRICE_FILTER_MAX = 5000000
+DAY_CHUNK = 4   # day-groups rendered per batch (lazy / infinite scroll)
 
 def _parse_price_range():
     """Optional price-range filter (0 - 5,000,000 MMK). The UI slider was
@@ -373,9 +377,14 @@ def _daily_view_context(filter_action, default_view='day'):
     )
     total_orders = sum(d['order_count'] for d in orders_by_day)
     total_revenue = sum(d['day_total'] for d in orders_by_day)
+    day_count = len(orders_by_day)
 
     return {
-        'orders_by_day': orders_by_day,
+        'orders_by_day': orders_by_day[:DAY_CHUNK],
+        'day_count': day_count,
+        'has_more': day_count > DAY_CHUNK,
+        'next_offset': DAY_CHUNK,
+        'highlight_id': _to_int(request.args.get('highlight'), 0),
         'view_mode': view_mode,
         'selected_day': selected_day,
         'selected_month': selected_month,
@@ -435,12 +444,16 @@ def _upload_image(file_storage):
     if not file_storage or not file_storage.filename:
         return None
     try:
+        # Stored copy is capped at 1600px and auto-compressed (the browser also
+        # shrinks photos before upload, this is the safety net).
         result = cloudinary.uploader.upload(
-            file_storage.stream, folder="iris_flower", resource_type="image"
+            file_storage.stream, folder="iris_flower", resource_type="image",
+            transformation=[{"width": 1600, "height": 1600, "crop": "limit"}, {"quality": "auto"}]
         )
         return result.get('secure_url')
     except Exception as e:
         print("CLOUDINARY UPLOAD ERROR:", e)
+        g.upload_error = str(e)[:160]
         return None
 
 def _apply_items(order):
@@ -551,6 +564,47 @@ def staff_view():
         show_payment=False, can_mark_paid=True, **ctx
     )
 
+@app.route('/api/daily_chunk')
+@login_required
+def api_daily_chunk():
+    """Next batch of day groups for lazy / infinite scroll (same filters as the page)."""
+    is_staff = session.get('role') == 'staff'
+    view_mode, filter_value, *_ = _parse_daily_filters('day' if is_staff else 'month')
+    source = (request.args.get('source') or '').strip()
+    paid = _parse_paid_filter()
+    _, _, applied_min, applied_max = _parse_price_range()
+
+    groups = _fetch_orders_for_period(
+        view_mode, filter_value, source=source or None,
+        min_price=applied_min, max_price=applied_max, paid=paid or None
+    )
+    offset = max(0, _to_int(request.args.get('offset'), 0))
+    chunk = groups[offset:offset + DAY_CHUNK]
+
+    html = render_template(
+        'partials/daily_records_groups.html',
+        orders_by_day=chunk, readonly=is_staff, show_payment=not is_staff, can_mark_paid=True
+    )
+    db.session.remove()
+    end = offset + len(chunk)
+
+    export_params = {view_mode: filter_value}
+    if source:
+        export_params['source'] = source
+    if paid:
+        export_params['paid'] = paid
+
+    return jsonify({
+        'html': html,
+        'next_offset': end,
+        'has_more': end < len(groups),
+        'total_orders': sum(g['order_count'] for g in groups),
+        'total_revenue': sum(g['day_total'] for g in groups),
+        'day_count': len(groups),
+        'export_params': export_params,
+        'period_value': filter_value,
+    })
+
 @app.route('/api/export_orders')
 @manager_required
 def api_export_orders():
@@ -621,6 +675,7 @@ def add_order():
         payment_method='',
     )
 
+    saved_id = saved_date = None
     try:
         items_total, failed = _apply_items(new_order)
         # Delivery fee (ကားခ) is stored separately and NOT added to total_price,
@@ -628,8 +683,9 @@ def add_order():
         new_order.total_price = items_total
         db.session.add(new_order)
         db.session.commit()
+        saved_id, saved_date = new_order.id, new_order.date
         if failed:
-            flash("Order saved, but some photos failed to upload. Please edit the order and re-add them.", 'error')
+            flash("Order saved, but some photos failed to upload: " + getattr(g, 'upload_error', 'unknown error'), 'error')
     except Exception as e:
         db.session.rollback()
         print("ADD ORDER ERROR:", e)
@@ -637,7 +693,7 @@ def add_order():
     finally:
         db.session.remove()
 
-    return _role_home_redirect()
+    return _role_home_redirect(saved_date, saved_id)
 
 @app.route('/delete_order/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -666,12 +722,14 @@ def edit_order(order_id):
     order.address = (request.form.get('address') or '').strip() or '-'
     order.delivery_fee = _to_int(request.form.get('delivery_fee'))
 
+    saved_id = saved_date = None
     try:
         items_total, failed = _apply_items(order)
         order.total_price = items_total
         db.session.commit()
+        saved_id, saved_date = order.id, order.date
         if failed:
-            flash("Order updated, but some photos failed to upload. Please try again.", 'error')
+            flash("Order updated, but some photos failed to upload: " + getattr(g, 'upload_error', 'unknown error'), 'error')
         else:
             flash('Order updated successfully.')
     except Exception as e:
@@ -681,7 +739,7 @@ def edit_order(order_id):
     finally:
         db.session.remove()
 
-    return _role_home_redirect()
+    return _role_home_redirect(saved_date, saved_id)
 
 # ==========================================
 # WRAPPER (ပန်းစည်းစည်းသူ / 包花员工) MANAGEMENT
