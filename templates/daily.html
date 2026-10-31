@@ -3,32 +3,35 @@
 {% block title %}每日订单记录 — Iris Flower{% endblock %}
 
 {% block content %}
-<style>
-    .hdr-icon-btn {
-        width: 44px; height: 44px; border-radius: 9999px; flex-shrink: 0;
-        display: inline-flex; align-items: center; justify-content: center;
-        font-size: 19px; line-height: 1; cursor: pointer;
-        background: #fff; border: 1px solid #e7e5e4;
-        box-shadow: 0 2px 8px rgba(28,25,23,.07);
-        transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
-    }
-    .hdr-icon-btn:hover { background: #fafaf9; box-shadow: 0 6px 16px rgba(28,25,23,.12); transform: translateY(-1px); }
-    .hdr-icon-btn:active { transform: scale(.92); }
-    .hdr-icon-btn:disabled { opacity: .55; cursor: wait; }
-</style>
-
 <header class="pt-6 pb-4 px-4 sm:px-6 lg:px-8 no-print">
-    <div class="max-w-7xl mx-auto flex items-start justify-between gap-3">
-        <div class="space-y-1 min-w-0">
+    <div class="max-w-7xl mx-auto space-y-4">
+        <div class="space-y-1">
             <h1 class="text-2xl sm:text-4xl font-semibold tracking-wide text-stone-900 font-serif">每日订单流水明细</h1>
             <p class="text-xs sm:text-sm text-stone-400 tracking-widest font-sans uppercase">云端数据中心 · 团队多端协同</p>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0 pt-1">
-            <button type="button" class="hdr-icon-btn" onclick="exportTableToCSV()" title="导出 CSV" aria-label="Export CSV">📄</button>
-            <button type="button" class="hdr-icon-btn" id="pdfExportBtn" onclick="runDailyPdfExport()" title="下载 PDF 报表" aria-label="Download PDF">📑</button>
-            <button type="button" class="hdr-icon-btn" onclick="wmOpen()" title="包花员工管理" aria-label="Manage wrappers">🎀</button>
+        <div class="grid grid-cols-2 gap-3 sm:max-w-xl">
+            <button type="button" onclick="exportTableToCSV()"
+                class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs sm:text-sm uppercase tracking-widest font-sans font-semibold py-4 px-3 rounded-lg transition-all shadow-xs border border-stone-300/60 cursor-pointer">
+                导出 CSV 表格
+            </button>
+            <button type="button" id="pdfExportBtn" onclick="runDailyPdfExport()"
+                class="bg-stone-950 hover:bg-stone-800 text-white text-xs sm:text-sm uppercase tracking-widest font-sans font-semibold py-4 px-3 rounded-lg transition-all shadow-sm cursor-pointer disabled:opacity-60">
+                下载 PDF 报表
+            </button>
         </div>
+
+        <button type="button" onclick="wmOpen()"
+            class="w-full sm:max-w-xl flex items-center justify-between gap-3 bg-white hover:bg-stone-50 border border-stone-200 rounded-xl px-4 py-3.5 shadow-xs transition-all cursor-pointer text-left">
+            <span class="flex items-center gap-3 min-w-0">
+                <span class="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-lg shrink-0">🎀</span>
+                <span class="min-w-0">
+                    <span class="block text-sm font-semibold text-stone-900 font-sans">包花员工管理</span>
+                    <span class="block text-[11px] text-stone-400 font-sans">添加 · 修改 · 删除</span>
+                </span>
+            </span>
+            <svg class="w-4 h-4 text-stone-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </button>
     </div>
 </header>
 
@@ -53,7 +56,7 @@
         const btn = document.getElementById('pdfExportBtn');
         const original = btn.innerHTML;
         btn.disabled = true;
-        btn.textContent = '…';
+        btn.textContent = '生成中…';
         try {
             const data = await fetchOrdersForExport(dailyExportParams);
             await renderOrderCardsPDF({
