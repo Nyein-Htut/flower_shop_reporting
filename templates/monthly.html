@@ -5,7 +5,8 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 font-sans" id="monthlyReportRoot">
 
-    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+        <header class="space-y-4 no-print">
+
         <div class="space-y-1">
             <h1 class="text-3xl font-semibold tracking-wide text-stone-900 font-serif">
                 {% if view_mode == 'year' %}年度业务报表{% else %}月度业务报表{% endif %}
@@ -15,53 +16,54 @@
             </p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-            <form method="GET" action="/monthly" id="monthlyFilterForm" class="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl border border-stone-200 shadow-xs">
-                <input type="hidden" name="view" id="viewModeInput" value="{{ view_mode }}">
+        <!-- Filter: one line -->
+        <form method="GET" action="/monthly" id="monthlyFilterForm" class="flex flex-nowrap items-center gap-2 bg-white p-2 rounded-xl border border-stone-200 shadow-xs w-full sm:max-w-xl">
+            <input type="hidden" name="view" id="viewModeInput" value="{{ view_mode }}">
 
-                <div class="flex rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
-                    <button type="button" onclick="setViewMode('month')"
-                        class="px-3.5 py-2 transition-all view-tab-month {% if view_mode != 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
-                        月度
-                    </button>
-                    <button type="button" onclick="setViewMode('year')"
-                        class="px-3.5 py-2 transition-all view-tab-year {% if view_mode == 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
-                        年度
-                    </button>
-                </div>
-
-                <div id="monthPicker" class="{% if view_mode == 'year' %}hidden{% endif %} min-w-[190px]">
-                    <input type="hidden" name="month" id="monthHidden" value="{{ selected_month }}">
-                    <button type="button" id="monthTriggerBtn" class="wp-trigger text-xs p-3" onclick="openMonthWheelPicker('monthTriggerBtn','monthHidden')">
-                        <span>{{ selected_month }}</span>
-                        <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-                    </button>
-                </div>
-
-                <div id="yearPicker" class="{% if view_mode != 'year' %}hidden{% endif %} min-w-[150px]">
-                    <input type="hidden" name="year" id="yearHidden" value="{{ selected_year }}">
-                    <button type="button" id="yearTriggerBtn" class="wp-trigger text-xs p-3" onclick="openYearListPicker('yearTriggerBtn','yearHidden', {{ available_years | tojson | safe }})">
-                        <span>{{ selected_year }}</span>
-                        <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                </div>
-
-                <button type="submit" class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-5 rounded-lg transition-all cursor-pointer">
-                    筛选
+            <div class="flex shrink-0 rounded-lg overflow-hidden border border-stone-200 text-[11px] font-semibold uppercase tracking-wider">
+                <button type="button" onclick="setViewMode('month')"
+                    class="px-3.5 py-2 transition-all view-tab-month {% if view_mode != 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                    月度
                 </button>
-            </form>
-
-            <div class="flex gap-2">
-                <a id="csvExportBtn" href="/monthly/export?view={{ view_mode }}&month={{ selected_month }}&year={{ selected_year }}"
-                    class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold tracking-widest uppercase py-2.5 px-4 rounded-lg transition-all shadow-xs border border-stone-300/60 cursor-pointer whitespace-nowrap">
-                    导出 CSV
-                </a>
-                <button type="button" id="monthlyPdfBtn" onclick="downloadMonthlyReportPDF()"
-                    class="bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-2.5 px-5 rounded-lg transition-all shadow-sm cursor-pointer whitespace-nowrap">
-                    下载 PDF 报表
+                <button type="button" onclick="setViewMode('year')"
+                    class="px-3.5 py-2 transition-all view-tab-year {% if view_mode == 'year' %}bg-stone-900 text-white{% else %}bg-white text-stone-500 hover:bg-stone-50{% endif %}">
+                    年度
                 </button>
             </div>
+
+            <div id="monthPicker" class="{% if view_mode == 'year' %}hidden{% endif %} flex-1 min-w-0">
+                <input type="hidden" name="month" id="monthHidden" value="{{ selected_month }}">
+                <button type="button" id="monthTriggerBtn" class="wp-trigger text-xs p-3" onclick="openMonthWheelPicker('monthTriggerBtn','monthHidden')">
+                    <span class="truncate">{{ selected_month }}</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                </button>
+            </div>
+
+            <div id="yearPicker" class="{% if view_mode != 'year' %}hidden{% endif %} flex-1 min-w-0">
+                <input type="hidden" name="year" id="yearHidden" value="{{ selected_year }}">
+                <button type="button" id="yearTriggerBtn" class="wp-trigger text-xs p-3" onclick="openYearListPicker('yearTriggerBtn','yearHidden', {{ available_years | tojson | safe }})">
+                    <span>{{ selected_year }}</span>
+                    <svg class="w-4 h-4 wp-trigger-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            </div>
+
+            <button type="submit" class="shrink-0 bg-stone-950 hover:bg-stone-800 text-white text-xs font-semibold tracking-widest uppercase py-3 px-4 rounded-lg transition-all cursor-pointer whitespace-nowrap">
+                筛选
+            </button>
+        </form>
+
+        <!-- CSV + PDF: one line, same as the daily page -->
+        <div class="grid grid-cols-2 gap-3 sm:max-w-xl">
+            <a id="csvExportBtn" href="/monthly/export?view={{ view_mode }}&month={{ selected_month }}&year={{ selected_year }}"
+                class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs sm:text-sm uppercase tracking-widest font-sans font-semibold py-4 px-3 rounded-lg transition-all shadow-xs border border-stone-300/60 cursor-pointer text-center whitespace-nowrap">
+                导出 CSV 表格
+            </a>
+            <button type="button" id="monthlyPdfBtn" onclick="downloadMonthlyReportPDF()"
+                class="bg-stone-950 hover:bg-stone-800 text-white text-xs sm:text-sm uppercase tracking-widest font-sans font-semibold py-4 px-3 rounded-lg transition-all shadow-sm cursor-pointer whitespace-nowrap disabled:opacity-60">
+                下载 PDF 报表
+            </button>
         </div>
+
     </header>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
