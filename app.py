@@ -56,6 +56,14 @@ def get_myanmar_now():
 
 db = SQLAlchemy(app)
 
+@app.template_filter('thumb')
+def cloud_thumb(url, size=480):
+    """Cloudinary URL -> small square auto-compressed thumbnail (fast lazy lists).
+    The full-size URL is still used when a photo is tapped."""
+    if url and 'res.cloudinary.com' in url and '/upload/' in url:
+        return url.replace('/upload/', f'/upload/c_fill,g_auto,w_{size},h_{size},q_auto,f_auto/', 1)
+    return url
+
 # ==========================================
 # DATABASE MODELS
 # ==========================================
