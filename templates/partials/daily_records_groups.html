@@ -3,12 +3,12 @@
 {% if readonly %}
 {% set t = {
   'orders':'အော်ဒါ','paid':'ပေးပြီး','markPaid':'ငွေရှင်းမည်','sourceLbl':'နေရာ',
-  'note':'မှတ်ချက်','time':'အချိန်','wrapper':'ပန်းစည်းစည်းသူ','edit':'ပြင်','del':'ဖျက်'
+  'note':'မှတ်ချက်','time':'အချိန်','wrapper':'ပန်းစည်းစည်းသူ','edit':'ပြင်','del':'ဖျက်','cake':'ကိတ်','bouquet':'ပန်းစည်း'
 } %}
 {% else %}
 {% set t = {
   'orders':'笔订单','paid':'已付款','markPaid':'标记已付款','sourceLbl':'来源',
-  'note':'备注','time':'时间','wrapper':'包花员工','edit':'编辑','del':'删除'
+  'note':'备注','time':'时间','wrapper':'包花员工','edit':'编辑','del':'删除','cake':'蛋糕','bouquet':'花束'
 } %}
 {% endif %}
 
@@ -57,6 +57,28 @@
             <div class="oc-items">
                 {% for item in order.items %}
                 <div class="oc-item" data-item-name="{{ item.item_name }}" data-price="{{ item.price }}" data-remarks="{{ item.remarks }}">
+                    {% if item.photo_url or (item.has_cake and item.cake_photo_url) %}
+                    <div class="oc-photos no-print-photo">
+                        {% if item.has_cake and item.cake_photo_url %}
+                        <figure class="oc-photo-fig">
+                            <div class="oc-photo is-cake" data-full="{{ item.cake_photo_url }}" onclick="openPhotoViewer(this.dataset.full)">
+                                <img src="{{ item.cake_photo_url|thumb }}" data-full="{{ item.cake_photo_url }}" loading="lazy" decoding="async" alt="{{ t.cake }}"
+                                     onerror="if(this.dataset.full &amp;&amp; this.src!==this.dataset.full){this.src=this.dataset.full}">
+                            </div>
+                            <figcaption>{{ t.cake }}</figcaption>
+                        </figure>
+                        {% endif %}
+                        {% if item.photo_url %}
+                        <figure class="oc-photo-fig">
+                            <div class="oc-photo is-bouquet" data-full="{{ item.photo_url }}" onclick="openPhotoViewer(this.dataset.full)">
+                                <img src="{{ item.photo_url|thumb }}" data-full="{{ item.photo_url }}" loading="lazy" decoding="async" alt="{{ t.bouquet }}"
+                                     onerror="if(this.dataset.full &amp;&amp; this.src!==this.dataset.full){this.src=this.dataset.full}">
+                            </div>
+                            <figcaption>{{ t.bouquet }}</figcaption>
+                        </figure>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     <div class="oc-item-meta">
                         <div class="oc-item-name">💐 {{ item.item_name }}</div>
                         {% if item.remarks and item.remarks != '-' and item.remarks != '' %}
