@@ -59,15 +59,6 @@
                 <div class="oc-item" data-item-name="{{ item.item_name }}" data-price="{{ item.price }}" data-remarks="{{ item.remarks }}">
                     {% if item.photo_url or (item.has_cake and item.cake_photo_url) %}
                     <div class="oc-photos no-print-photo">
-                        {% if item.has_cake and item.cake_photo_url %}
-                        <figure class="oc-photo-fig">
-                            <div class="oc-photo is-cake" data-full="{{ item.cake_photo_url }}" onclick="openPhotoViewer(this.dataset.full)">
-                                <img src="{{ item.cake_photo_url|thumb }}" data-full="{{ item.cake_photo_url }}" loading="lazy" decoding="async" alt="{{ t.cake }}"
-                                     onerror="if(this.dataset.full &amp;&amp; this.src!==this.dataset.full){this.src=this.dataset.full}">
-                            </div>
-                            <figcaption>{{ t.cake }}</figcaption>
-                        </figure>
-                        {% endif %}
                         {% if item.photo_url %}
                         <figure class="oc-photo-fig">
                             <div class="oc-photo is-bouquet" data-full="{{ item.photo_url }}" onclick="openPhotoViewer(this.dataset.full)">
@@ -75,6 +66,15 @@
                                      onerror="if(this.dataset.full &amp;&amp; this.src!==this.dataset.full){this.src=this.dataset.full}">
                             </div>
                             <figcaption>{{ t.bouquet }}</figcaption>
+                        </figure>
+                        {% endif %}
+                        {% if item.has_cake and item.cake_photo_url %}
+                        <figure class="oc-photo-fig">
+                            <div class="oc-photo is-cake" data-full="{{ item.cake_photo_url }}" onclick="openPhotoViewer(this.dataset.full)">
+                                <img src="{{ item.cake_photo_url|thumb }}" data-full="{{ item.cake_photo_url }}" loading="lazy" decoding="async" alt="{{ t.cake }}"
+                                     onerror="if(this.dataset.full &amp;&amp; this.src!==this.dataset.full){this.src=this.dataset.full}">
+                            </div>
+                            <figcaption>{{ t.cake }}</figcaption>
                         </figure>
                         {% endif %}
                     </div>
