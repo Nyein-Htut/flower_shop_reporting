@@ -11,6 +11,7 @@ import csv
 import io
 import cloudinary
 import cloudinary.uploader
+import re
 
 app = Flask(__name__)
 
@@ -48,6 +49,17 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 # and by the expense page to be built later).
 PAYMENT_RECEIVERS = ['Ko Kyaw', 'Iris', 'Other']
 PAYMENT_METHODS = ['KPay', 'Cash']
+
+# (text colour, background colour)
+RECEIVER_COLORS = {
+    'Ko Kyaw': ('#b45309', '#fef3c7'),   # amber
+    'Iris':    ('#be185d', '#fce7f3'),   # pink
+    'Other':   ('#57534e', '#f5f5f4'),   # stone
+}
+METHOD_COLORS = {
+    'KPay': ('#1d4ed8', '#dbeafe'),      # blue
+    'Cash': ('#047857', '#d1fae5'),      # green
+}
 
 def get_myanmar_now():
     """Returns a datetime object set explicitly to Myanmar Time (UTC +6:30)"""
@@ -1083,10 +1095,13 @@ def toggle_payment(order_id):
         if who not in PAYMENT_RECEIVERS or method not in PAYMENT_METHODS:
             db.session.remove()
             return jsonify({'success': False, 'error': 'Choose who received it and the payment method'}), 400
+        pay_date = (data.get('payment_date') or '').strip()
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', pay_date):
+            pay_date = get_myanmar_now().strftime('%Y-%m-%d')
         order.is_paid = True
         order.received_by = who
         order.payment_method = method
-        order.payment_date = (data.get('payment_date') or '').strip() or get_myanmar_now().strftime('%Y-%m-%d')
+        order.payment_date = pay_date
     else:
         order.is_paid = False
         order.received_by = ''
@@ -1108,7 +1123,83 @@ def toggle_payment(order_id):
         return jsonify({'success': False, 'error': 'Update failed'}), 500
     finally:
         db.session.remove()
+# ==========================================
+# INCOME (paid orders)
+# ==========================================
+def _income_rows(month, by):
+    col = Order.payment_date if by == 'payment' else Order.date
+    orders = (
+        Order.query.options(joinedload(Order.items))
+        .filter(Order.is_paid.is_(True), col.like(f"{month}%"))
+        .order_by(col.desc(), Order.id.desc())
+        .all()
+    )
+    rows = []
+    for o in orders:
+        photo = next((it.photo_url for it in o.items if it.photo_url), '')
+        rows.append({
+            'id': o.id,
+            'customer': o.customer,
+            'date': o.date,
+            'payment_date': o.payment_date or '',
+            'price': o.total_price or 0,
+            'fee': o.delivery_fee or 0,
+            'receiver': o.received_by or '',
+            'method': o.payment_method or '',
+            'photo': cloud_thumb(photo, 120) if photo else '',
+        })
+    return rows
 
+def _income_summary(rows):
+    items_total = sum(r['price'] for r in rows)
+    fee_total = sum(r['fee'] for r in rows)
+    combos = {}
+    for r in rows:
+        key = (r['receiver'], r['method'])
+        c = combos.setdefault(key, {'receiver': r['receiver'], 'method': r['method'], 'count': 0, 'amount': 0})
+        c['count'] += 1
+        c['amount'] += r['price'] + r['fee']
+    return {
+        'count': len(rows),
+        'items_total': items_total,
+        'fee_total': fee_total,
+        'grand_total': items_total + fee_total,
+        'combos': sorted(combos.values(), key=lambda c: c['amount'], reverse=True),
+    }
+
+def _income_params():
+    by = request.args.get('by', 'payment')
+    by = by if by in ('payment', 'delivery') else 'payment'
+    month = (request.args.get('month') or '').strip() or get_myanmar_now().strftime('%Y-%m')
+    return by, month
+
+@app.route('/income')
+@manager_required
+def income():
+    by, month = _income_params()
+    rows = _income_rows(month, by)
+    summary = _income_summary(rows)
+    db.session.remove()
+    return render_template(
+        'income.html', active_page='income', by=by, month=month, rows=rows, summary=summary,
+        receiver_colors=RECEIVER_COLORS, method_colors=METHOD_COLORS
+    )
+
+@app.route('/income/export')
+@manager_required
+def income_export():
+    by, month = _income_params()
+    rows = _income_rows(month, by)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(['Payment Date', 'Order Date', 'Customer', 'Price (MMK)', 'Delivery Fee (MMK)',
+                'Received By', 'Method'])
+    for r in rows:
+        w.writerow([r['payment_date'], r['date'], r['customer'], r['price'], r['fee'], r['receiver'], r['method']])
+    mem = io.BytesIO(('\ufeff' + buf.getvalue()).encode('utf-8'))
+    return send_file(mem, mimetype='text/csv', as_attachment=True,
+                     download_name=f"Iris_Flower_Income_{month}.csv")
+    
 @app.route('/admin/archive', methods=['GET'])
 @manager_required
 def archive_view():
