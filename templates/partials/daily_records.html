@@ -605,31 +605,39 @@ const PAY_RECEIVERS = ['Ko Kyaw', 'Iris', 'Other'];
 const PAY_METHODS = ['KPay', 'Cash'];
 
 function payText(d) {
-    return d.is_paid ? [DF_T.paid, d.received_by, d.payment_method].filter(Boolean).join(' · ') : DF_T.markPaid;
+    const dt = d.payment_date ? d.payment_date.slice(5) : '';   // MM-DD
+    return d.is_paid ? [DF_T.paid, d.received_by, d.payment_method, dt].filter(Boolean).join(' · ') : DF_T.markPaid;
 }
 function handlePaymentCheckboxChange(cb) {
     const orderId = cb.getAttribute('data-order-id');
-    if (!cb.checked) { submitPaymentUpdate(orderId, false, '', '', cb); return; }   // un-tick -> unpaid
-    cb.checked = false;                     // becomes ticked only after the server confirms
-    openListPicker({
+    if (!cb.checked) { submitPaymentUpdate(orderId, false, '', '', '', cb); return; }
+    cb.checked = false;                     // ticked only after the server confirms
+    openListPicker({                        // 1) source
         title: DF_T.receiverTitle,
         options: PAY_RECEIVERS,
         onPick: (who) => {
-            openListPicker({
+            openListPicker({                // 2) method
                 title: DF_T.methodTitle,
                 options: PAY_METHODS,
-                onPick: (method) => submitPaymentUpdate(orderId, true, who, method, cb)
+                onPick: (method) => {
+                    openDateWheelPicker({   // 3) paid date
+                        title: DF_T.payDateTitle,
+                        quickHtml: DF_QUICK_DAY,
+                        initialValue: wpIsoForOffset(0),
+                        onConfirm: (iso) => submitPaymentUpdate(orderId, true, who, method, iso, cb)
+                    });
+                }
             });
         }
     });
 }
-async function submitPaymentUpdate(orderId, isPaid, who, method, cb) {
+async function submitPaymentUpdate(orderId, isPaid, who, method, payDate, cb) {
     cb.disabled = true;
     try {
         const res = await fetch(`/toggle_payment/${orderId}`, {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_paid: isPaid, received_by: who, payment_method: method })
+            body: JSON.stringify({ is_paid: isPaid, received_by: who, payment_method: method, payment_date: payDate })
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Update failed');
