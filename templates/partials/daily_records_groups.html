@@ -21,8 +21,8 @@
 
     <div class="orders-grid">
         {% for order in day_group.orders %}
-        {% set pay_text %}{% if order.is_paid %}{{ t.paid }}{% if order.received_by %} · {{ order.received_by }}{% endif %}{% if order.payment_method %} · {{ order.payment_method }}{% endif %}{% else %}{{ t.markPaid }}{% endif %}{% endset %}
-        <div class="order-card"
+        {% set pay_text %}{% if order.is_paid %}{{ t.paid }}{% if order.received_by %} · {{ order.received_by }}{% endif %}{% if order.payment_method %} · {{ order.payment_method }}{% endif %}{% if order.payment_date %} · {{ order.payment_date[5:] }}{% endif %}{% else %}{{ t.markPaid }}{% endif %}{% endset %}
+       <div class="order-card"
             id="order-card-{{ order.id }}"
             data-date="{{ order.date }}"
             data-customer="{{ order.customer }}"
