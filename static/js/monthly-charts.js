@@ -4,8 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const D = window.MC_DATA;
   if (!D || typeof Chart === 'undefined') return;
 
-  const P = { iris: '#8b78e6', soft: '#c9bdf8', rose: '#f08fb8', mint: '#6fcfa8', peach: '#f6b98f',
-              mute: '#8a84a3', grid: 'rgba(139,120,230,.10)' };
+  const P = { cap: '#b08968', rose: '#d4939c', mute: '#9a8a80', grid: 'rgba(140,100,75,.10)', ink: '#3b2f2a' };
   const fmt = (v) => Number(v || 0).toLocaleString() + ' MMK';
   const short = (v) => v >= 1e6 ? +(v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? +(v / 1e3).toFixed(0) + 'k' : v;
   const sum = (a) => a.reduce((x, y) => x + y, 0);
@@ -17,9 +16,9 @@ document.addEventListener('DOMContentLoaded', function () {
   Chart.defaults.animation.easing = 'easeOutQuart';
 
   const tooltip = {
-    backgroundColor: 'rgba(39,35,58,.94)', titleColor: '#fff', bodyColor: '#e9e4ff',
+    backgroundColor: 'rgba(52,38,30,.94)', titleColor: '#fff', bodyColor: '#f3e7d9',
     padding: 12, cornerRadius: 12, displayColors: false, boxPadding: 4,
-    titleFont: { weight: '600' }, bodyFont: { size: 13 }, footerColor: '#bfb4f5', footerFont: { weight: '500', size: 11 }
+    titleFont: { weight: '600' }, bodyFont: { size: 13 }, footerColor: '#e0bfae', footerFont: { weight: '500', size: 11 }
   };
   const axes = {
     y: { beginAtZero: true, border: { display: false }, grid: { color: P.grid },
@@ -29,19 +28,17 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   const base = { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' } };
 
-  // vertical guide line that follows the hovered point
   const crosshair = { id: 'crosshair', afterDatasetsDraw(c) {
     const a = c.tooltip && c.tooltip.getActiveElements();
     if (!a || !a.length) return;
     const x = a[0].element.x, { top, bottom } = c.chartArea, g = c.ctx;
-    g.save(); g.beginPath(); g.setLineDash([4, 4]); g.strokeStyle = 'rgba(139,120,230,.45)';
+    g.save(); g.beginPath(); g.setLineDash([4, 4]); g.strokeStyle = 'rgba(140,106,80,.45)';
     g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.restore();
   }};
-  // total shown in the middle of the doughnut
   const centerText = { id: 'centerText', afterDraw(c) {
     const { left, right, top, bottom } = c.chartArea, g = c.ctx, cx = (left + right) / 2, cy = (top + bottom) / 2;
     g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = '#27233a'; g.font = "700 24px 'Inter',sans-serif"; g.fillText(sum(D.customerSplit), cx, cy - 6);
+    g.fillStyle = P.ink; g.font = "700 24px 'Inter',sans-serif"; g.fillText(sum(D.customerSplit), cx, cy - 6);
     g.fillStyle = P.mute; g.font = "500 11px 'Inter',sans-serif"; g.fillText('customers', cx, cy + 14);
     g.restore();
   }};
@@ -62,14 +59,14 @@ document.addEventListener('DOMContentLoaded', function () {
     data: { labels: D.trendLabels, datasets: [{
       label: isYear ? 'Monthly Revenue' : 'Daily Revenue', data: D.trendData, fill: true, tension: 0.38, borderWidth: 3,
       borderColor: (c) => {
-        const a = c.chart.chartArea; if (!a) return P.iris;
+        const a = c.chart.chartArea; if (!a) return P.cap;
         const g = c.chart.ctx.createLinearGradient(a.left, 0, a.right, 0);
-        g.addColorStop(0, P.iris); g.addColorStop(1, P.rose); return g;
+        g.addColorStop(0, P.cap); g.addColorStop(1, P.rose); return g;
       },
-      backgroundColor: (c) => vGrad(c.chart, 'rgba(139,120,230,.30)', 'rgba(240,143,184,0)'),
+      backgroundColor: (c) => vGrad(c.chart, 'rgba(176,137,104,.32)', 'rgba(212,147,156,0)'),
       pointRadius: (c) => c.dataIndex === peakIdx ? 6 : (isYear ? 4 : 0),
       pointHoverRadius: 8, pointBackgroundColor: '#fff', pointBorderWidth: 3,
-      pointBorderColor: (c) => c.dataIndex === peakIdx ? P.rose : P.iris
+      pointBorderColor: (c) => c.dataIndex === peakIdx ? P.rose : P.cap
     }]},
     options: { ...base, plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: {
       title: (i) => isYear ? i[0].label : D.period + '-' + String(i[0].label).padStart(2, '0'),
@@ -84,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function () {
     type: 'doughnut',
     plugins: [centerText],
     data: { labels: ['New Customers', 'Returning Customers'], datasets: [{
-      data: D.customerSplit, backgroundColor: [P.peach, P.mint], borderWidth: 0, spacing: 4, borderRadius: 10, hoverOffset: 8 }] },
+      data: D.customerSplit, backgroundColor: ['#e0a9b0', '#b89478'], borderWidth: 0, spacing: 4, borderRadius: 10, hoverOffset: 8 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '72%',
       plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 14, font: { size: 11 } } },
         tooltip: { ...tooltip, callbacks: { label: (c) => c.label + ': ' + c.parsed + (custTotal ? ' (' + Math.round(c.parsed / custTotal * 100) + '%)' : '') } } } }
@@ -96,8 +93,8 @@ document.addEventListener('DOMContentLoaded', function () {
     type: 'bar',
     data: { labels: D.weekdayLabels, datasets: [{
       label: 'Revenue', data: D.weekdayData, borderRadius: 10, borderSkipped: false, barPercentage: 0.66, categoryPercentage: 0.8,
-      backgroundColor: (c) => c.dataIndex === wPeak ? vGrad(c.chart, '#f6a8c9', '#fbd3e3') : vGrad(c.chart, '#b7a6f5', '#e6e0fc'),
-      hoverBackgroundColor: (c) => vGrad(c.chart, '#8b78e6', '#bfb0f7')
+      backgroundColor: (c) => c.dataIndex === wPeak ? vGrad(c.chart, '#d9a0a8', '#f1d6d9') : vGrad(c.chart, '#c9ad92', '#efe3d6'),
+      hoverBackgroundColor: (c) => vGrad(c.chart, '#a67f60', '#d2b79e')
     }]},
     options: { ...base, plugins: { legend: { display: false }, tooltip: { ...tooltip, callbacks: {
       label: (c) => fmt(c.parsed.y),
