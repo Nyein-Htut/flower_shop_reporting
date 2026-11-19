@@ -7,7 +7,7 @@
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+Myanmar:wght@400;600;700&display=swap" rel="stylesheet">
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+Myanmar:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -15,19 +15,7 @@
         theme: {
           extend: {
             colors: {
-              emerald: {
-                50:  '#faf6f1',
-                100: '#f0e6da',
-                200: '#e0ccb4',
-                300: '#cba97e',
-                400: '#a97f52',
-                500: '#8a6239',
-                600: '#6f4e2e',
-                700: '#5a3f26',
-                800: '#4a3728',
-                900: '#3d2e21',
-                950: '#241a13'
-              }
+              emerald: {50:'#f6f3ff',100:'#ece6ff',200:'#d9ccff',300:'#bfa9fb',400:'#a286f3',500:'#8a68e8',600:'#7650d6',700:'#6340bd',800:'#4f3396',900:'#3e2a76',950:'#261a4d'}
             }
           }
         }
@@ -351,6 +339,7 @@
         .pr-slider input[type=range]::-webkit-slider-runnable-track { background: transparent; }
         .pr-slider input[type=range]::-moz-range-track { background: transparent; }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
 </head>
 <body class="bg-[#FCFAF7] text-[#21201F] min-h-screen pb-12">
 
