@@ -120,7 +120,7 @@
             <h2 class="text-base font-bold text-stone-900 tracking-wide font-serif">店铺渠道贡献</h2>
 
             <div class="space-y-4 font-numeric">
-                {% set channel_colors = ['#292524', '#57534e', '#78716c', '#a8a29e', '#059669', '#b45309'] %}
+                {% set channel_colors = ['#8b78e6', '#f08fb8', '#6fcfa8', '#f6b98f', '#8fc4f2', '#b7a6f5'] %}
                 {% for channel in channels %}
                 <div class="space-y-1.5">
                     <div class="flex justify-between text-xs font-medium text-stone-800">
@@ -394,168 +394,18 @@ async function downloadMonthlyReportPDF() {
         btn.textContent = original;
     }
 }
-
-
-document.addEventListener("DOMContentLoaded", function () {
-
-    const palette = {
-        primary: '#292524',
-        secondary: '#57534e',
-        tertiary: '#78716c',
-        accent: '#a8a29e',
-        success: '#059669',
-        warm: '#b45309',
-        rose: '#9f1239',
-        muted: '#d6d3d1',
-        grid: '#f5f5f4',
-        text: '#78716c',
-        series: ['#292524', '#44403c', '#57534e', '#78716c', '#059669', '#0d9488', '#b45309', '#9f1239']
-    };
-
-    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    Chart.defaults.color = palette.text;
-    Chart.defaults.borderColor = palette.muted;
-
-    const trendLabels = {{ trend_labels | tojson | safe }};
-    const trendData = {{ trend_data | tojson | safe }};
-    const customerSplitData = {{ customer_split_data | tojson | safe }};
-    const weekdayLabels = {{ weekday_labels | tojson | safe }};
-    const weekdayData = {{ weekday_data | tojson | safe }};
-    const viewMode = {{ view_mode | tojson | safe }};
-
-    const formatMMK = (value) => value.toLocaleString() + ' MMK';
-
-    const baseOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { intersect: false, mode: 'index' },
-        plugins: {
-            legend: { labels: { usePointStyle: true, padding: 16, boxWidth: 8, font: { size: 11 } } },
-            tooltip: {
-                backgroundColor: '#1c1917',
-                titleColor: '#fafaf9',
-                bodyColor: '#d6d3d1',
-                padding: 12,
-                cornerRadius: 8,
-                displayColors: true,
-                boxPadding: 4
-            }
-        }
-    };
-
-    window.mcCharts = window.mcCharts || {};
-
-    const trendCtx = document.getElementById('revenueTrendChart').getContext('2d');
-    const trendGradient = trendCtx.createLinearGradient(0, 0, 0, 300);
-    trendGradient.addColorStop(0, 'rgba(41, 37, 36, 0.18)');
-    trendGradient.addColorStop(1, 'rgba(41, 37, 36, 0)');
-
-    window.mcCharts.revenueTrendChart = new Chart(trendCtx, {
-        type: 'line',
-        data: {
-            labels: trendLabels,
-            datasets: [{
-                label: viewMode === 'year' ? 'Monthly Revenue' : 'Daily Revenue',
-                data: trendData,
-                borderColor: palette.primary,
-                backgroundColor: trendGradient,
-                fill: true,
-                borderWidth: 2.5,
-                tension: 0.35,
-                pointRadius: viewMode === 'year' ? 5 : 3,
-                pointHoverRadius: 7,
-                pointBackgroundColor: '#fafaf9',
-                pointBorderColor: palette.primary,
-                pointBorderWidth: 2
-            }]
-        },
-        options: {
-            ...baseOptions,
-            plugins: {
-                ...baseOptions.plugins,
-                legend: { display: false },
-                tooltip: { callbacks: { label: (ctx) => formatMMK(ctx.parsed.y) } }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: palette.grid, drawBorder: false },
-                    ticks: { callback: (v) => v.toLocaleString(), padding: 8 }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: viewMode === 'year' ? 12 : 15 }
-                }
-            }
-        }
-    });
-
-    window.mcCharts.customerChart = new Chart(document.getElementById('customerChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['New Customers', 'Returning Customers'],
-            datasets: [{
-                data: customerSplitData,
-                backgroundColor: [palette.tertiary, palette.success],
-                borderWidth: 3,
-                borderColor: '#fff',
-                hoverOffset: 8
-            }]
-        },
-        options: {
-            ...baseOptions,
-            cutout: '72%',
-            plugins: {
-                ...baseOptions.plugins,
-                legend: { position: 'bottom', labels: { padding: 12, font: { size: 10 } } }
-            }
-        }
-    });
-
-    const maxWeekday = Math.max(...weekdayData, 1);
-    const barColors = weekdayData.map((val, i) => {
-        const intensity = val / maxWeekday;
-        if (intensity > 0.7) return palette.primary;
-        if (intensity > 0.4) return palette.secondary;
-        if (intensity > 0.15) return palette.tertiary;
-        return palette.accent;
-    });
-
-    window.mcCharts.weekdayChart = new Chart(document.getElementById('weekdayChart'), {
-        type: 'bar',
-        data: {
-            labels: weekdayLabels,
-            datasets: [{
-                label: 'Revenue',
-                data: weekdayData,
-                backgroundColor: barColors,
-                borderRadius: 6,
-                borderSkipped: false,
-                barPercentage: 0.65,
-                categoryPercentage: 0.8
-            }]
-        },
-        options: {
-            ...baseOptions,
-            plugins: {
-                ...baseOptions.plugins,
-                legend: { display: false },
-                tooltip: { callbacks: { label: (ctx) => formatMMK(ctx.parsed.y) } }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: palette.grid, drawBorder: false },
-                    ticks: { callback: (v) => v.toLocaleString(), padding: 8 }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { font: { weight: '500' } }
-                }
-            }
-        }
-    });
-
-});
 </script>
+
+<script>
+window.MC_DATA = {
+    viewMode: {{ view_mode | tojson | safe }},
+    period: {{ period_label | tojson | safe }},
+    trendLabels: {{ trend_labels | tojson | safe }},
+    trendData: {{ trend_data | tojson | safe }},
+    customerSplit: {{ customer_split_data | tojson | safe }},
+    weekdayLabels: {{ weekday_labels | tojson | safe }},
+    weekdayData: {{ weekday_data | tojson | safe }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/monthly-charts.js') }}"></script>
 {% endblock %}
