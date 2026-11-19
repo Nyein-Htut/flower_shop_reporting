@@ -56,19 +56,37 @@ main .ef-item-card {
 }
 main .bg-white.rounded-2xl.hover\:shadow-md:hover { transform: translateY(-3px); box-shadow: var(--shadow-up); }
 
-/* dark hero cards + primary buttons -> cappuccino/rose gradient */
-body .bg-stone-950, body .bg-stone-900 {
-  background-image: var(--grad);
-  background-color: var(--cap);
-  box-shadow: 0 8px 20px rgba(160, 115, 90, .30);
+/* primary buttons + active tabs: light cappuccino, dark text (readable, not heavy) */
+body button.bg-stone-950, body a.bg-stone-950, body button.bg-stone-900, body a.bg-stone-900 {
+  background-image: linear-gradient(135deg, #ead3bd 0%, #e8c3b8 60%, #e6b8bd 100%);
+  background-color: #ead3bd;
+  color: #4a362a;
+  border: 1px solid rgba(255, 255, 255, .75);
+  box-shadow: 0 4px 14px rgba(160, 115, 90, .18);
   transition: filter .2s, transform .2s var(--ease), box-shadow .2s;
 }
-body button.bg-stone-950:hover, body button.bg-stone-900:hover, body a.bg-stone-950:hover { filter: brightness(1.06); transform: translateY(-1px); }
+body button.bg-stone-950:hover, body a.bg-stone-950:hover, body button.bg-stone-900:hover {
+  filter: brightness(1.04); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(160, 115, 90, .26);
+}
 body button.bg-stone-950:active, body button.bg-stone-900:active { transform: scale(.98); }
-body .bg-stone-950.rounded-2xl { background-image: linear-gradient(135deg, #6f5240 0%, #9c7660 50%, #c9979b 120%); }
+
+/* the one dark hero card per page: deep espresso with cream text */
+body .bg-stone-950.rounded-2xl {
+  background-image: linear-gradient(135deg, #3f2d24 0%, #5e4435 55%, #8a5f5c 125%);
+  background-color: #4a362a;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 14px 34px rgba(74, 54, 42, .28);
+}
+body .bg-stone-950.rounded-2xl .text-stone-300,
+body .bg-stone-950.rounded-2xl .text-stone-400 { color: #ecd9c8; }
+body .bg-stone-950.rounded-2xl h3 { letter-spacing: .06em; }
+body .bg-stone-950.rounded-2xl [class*="emerald-500"] {
+  background: rgba(255, 255, 255, .16); color: #ffe6d6;
+}
 
 /* soft secondary buttons */
-body a.bg-stone-100, body button.bg-stone-100 { background: rgba(255, 252, 248, .75); border-color: var(--line); transition: background-color .2s, transform .2s var(--ease); }
+body a.bg-stone-100, body button.bg-stone-100 { background: rgba(255, 252, 248, .8); border-color: var(--line); transition: background-color .2s, transform .2s var(--ease); }
 body a.bg-stone-100:hover, body button.bg-stone-100:hover { background: #fff; transform: translateY(-1px); }
 
 /* ---------- KPI cards (monthly) ---------- */
@@ -138,7 +156,7 @@ main table tbody tr:hover { background: rgba(176, 137, 104, .08); }
 .oc-photo.is-bouquet { border-color: var(--rose-soft); }
 .oc-photo { transition: transform .3s var(--ease); }
 .oc-photo:hover { transform: scale(1.03); }
-.day-separator { background: linear-gradient(120deg, #b89a82 0%, #c9a29a 55%, #d4a1a6 100%); box-shadow: 0 6px 18px rgba(160, 115, 90, .24); }
+.day-separator { background: linear-gradient(120deg, #9c7a63 0%, #b58a82 55%, #c28f96 100%); box-shadow: 0 6px 18px rgba(130, 95, 75, .24); }
 
 /* ---------- loading / empty states ---------- */
 @keyframes of-pulse { 0%, 100% { opacity: .55; } 50% { opacity: .9; } }
